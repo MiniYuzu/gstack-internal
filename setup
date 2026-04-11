@@ -28,6 +28,12 @@ case "$(uname -s)" in
   MINGW*|MSYS*|CYGWIN*|Windows_NT) IS_WINDOWS=1 ;;
 esac
 
+# 内网模式检测
+INTERNAL_NETWORK=0
+if [ "${GSTACK_INTERNAL_NETWORK:-0}" = "1" ]; then
+  INTERNAL_NETWORK=1
+fi
+
 # ─── Quiet mode helper ────────────────────────────────────────
 QUIET=0
 log() { [ "$QUIET" -eq 0 ] && echo "$@" || true; }
@@ -180,14 +186,23 @@ ensure_playwright_browser() {
   if [ "$IS_WINDOWS" -eq 1 ]; then
     # On Windows, Bun can't launch Chromium due to broken pipe handling
     # (oven-sh/bun#4253). Use Node.js to verify Chromium works instead.
+    # For internal network, use playwright-core with configured chrome path.
     (
       cd "$SOURCE_GSTACK_DIR"
-      node -e "const { chromium } = require('playwright'); (async () => { const b = await chromium.launch(); await b.close(); })()" 2>/dev/null
+      if [ "$INTERNAL_NETWORK" -eq 1 ]; then
+        node -e "const { chromium } = require('playwright-core'); (async () => { const chromePath = process.env.GSTACK_CHROMIUM_PATH; if (!chromePath) { console.error('GSTACK_CHROMIUM_PATH not set'); process.exit(1); } const b = await chromium.launch({ executablePath: chromePath }); await b.close(); })()" 2>/dev/null
+      else
+        node -e "const { chromium } = require('playwright'); (async () => { const b = await chromium.launch(); await b.close(); })()" 2>/dev/null
+      fi
     )
   else
     (
       cd "$SOURCE_GSTACK_DIR"
-      bun --eval 'import { chromium } from "playwright"; const browser = await chromium.launch(); await browser.close();'
+      if [ "$INTERNAL_NETWORK" -eq 1 ]; then
+        bun --eval 'import { chromium } from "playwright-core"; const chromePath = process.env.GSTACK_CHROMIUM_PATH; if (!chromePath) { console.error("GSTACK_CHROMIUM_PATH not set"); process.exit(1); } const browser = await chromium.launch({ executablePath: chromePath }); await browser.close();'
+      else
+        bun --eval 'import { chromium } from "playwright"; const browser = await chromium.launch(); await browser.close();'
+      fi
     ) >/dev/null 2>&1
   fi
 }
@@ -205,12 +220,21 @@ elif [ -f "$SOURCE_GSTACK_DIR/bun.lock" ] && [ "$SOURCE_GSTACK_DIR/bun.lock" -nt
 fi
 
 if [ "$NEEDS_BUILD" -eq 1 ]; then
-  log "Building browse binary..."
-  (
-    cd "$SOURCE_GSTACK_DIR"
-    bun install
-    bun run build
-  )
+  if [ "$INTERNAL_NETWORK" -eq 1 ]; then
+    log "Building gstack for internal network (Node CLI mode)..."
+    (
+      cd "$SOURCE_GSTACK_DIR"
+      bun install
+      bun run build:node
+    )
+  else
+    log "Building browse binary..."
+    (
+      cd "$SOURCE_GSTACK_DIR"
+      bun install
+      bun run build
+    )
+  fi
   # Safety net: write .version if build script didn't (e.g., git not available during build)
   if [ ! -f "$SOURCE_GSTACK_DIR/browse/dist/.version" ]; then
     git -C "$SOURCE_GSTACK_DIR" rev-parse HEAD > "$SOURCE_GSTACK_DIR/browse/dist/.version" 2>/dev/null || true

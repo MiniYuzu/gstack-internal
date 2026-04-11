@@ -16,7 +16,7 @@
  * Both paths pass TabSession to the same handler functions.
  */
 
-import type { Page, Locator, Frame } from 'playwright';
+import type { Page, Locator, Frame } from 'playwright-core';
 
 export interface RefEntry {
   locator: Locator;

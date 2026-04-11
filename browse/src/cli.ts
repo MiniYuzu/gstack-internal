@@ -307,9 +307,14 @@ async function ensureServer(): Promise<ServerState> {
     // Check for binary version mismatch (auto-restart on update)
     const currentVersion = readVersionHash();
     if (currentVersion && state.binaryVersion && currentVersion !== state.binaryVersion) {
-      console.error('[browse] Binary updated, restarting server...');
-      await killServer(state.pid);
-      return startServer();
+      if (process.env.GSTACK_DISABLE_VERSION_CHECK === '1') {
+        // Internal network: skip version check
+        console.log('[browse] Version mismatch detected but GSTACK_DISABLE_VERSION_CHECK is set, continuing...');
+      } else {
+        console.error('[browse] Binary updated, restarting server...');
+        await killServer(state.pid);
+        return startServer();
+      }
     }
     return state;
   }

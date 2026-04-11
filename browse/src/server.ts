@@ -227,7 +227,19 @@ function getChatBuffer(tabId?: number): ChatEntry[] {
 let chatBuffer: ChatEntry[] = [];
 
 // Find the browse binary for the claude subprocess system prompt
+// In internal network mode, uses .js wrapper that spawns bun run
 function findBrowseBin(): string {
+  // Check for .js wrapper first (internal network mode)
+  const jsCandidates = [
+    path.resolve(__dirname, '..', 'dist', 'browse.js'),
+    path.resolve(__dirname, '..', '..', '.claude', 'skills', 'gstack', 'browse', 'dist', 'browse.js'),
+    path.join(process.env.HOME || '', '.claude', 'skills', 'gstack', 'browse', 'dist', 'browse.js'),
+  ];
+  for (const c of jsCandidates) {
+    try { if (fs.existsSync(c)) return `bun run ${c}`; } catch {}
+  }
+
+  // Fall back to compiled binary
   const candidates = [
     path.resolve(__dirname, '..', 'dist', 'browse'),
     path.resolve(__dirname, '..', '..', '.claude', 'skills', 'gstack', 'browse', 'dist', 'browse'),

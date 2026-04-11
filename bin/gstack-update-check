@@ -12,6 +12,11 @@
 #   GSTACK_STATE_DIR    — override ~/.gstack state directory
 set -euo pipefail
 
+# 内网环境：默认禁用更新检查
+if [ "${GSTACK_ENABLE_UPDATE_CHECK:-0}" != "1" ]; then
+  exit 0
+fi
+
 GSTACK_DIR="${GSTACK_DIR:-$(cd "$(dirname "$0")/.." && pwd)}"
 STATE_DIR="${GSTACK_STATE_DIR:-$HOME/.gstack}"
 CACHE_FILE="$STATE_DIR/last-update-check"

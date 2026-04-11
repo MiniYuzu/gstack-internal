@@ -32,6 +32,10 @@ export function locateBinary(): string | null {
   // Workspace-local takes priority (for development)
   if (root) {
     for (const m of markers) {
+      // Check for .js wrapper first (internal network mode)
+      const localJs = join(root, m, 'skills', 'gstack', 'browse', 'dist', 'browse.js');
+      if (existsSync(localJs)) return localJs;
+      // Fall back to binary
       const local = join(root, m, 'skills', 'gstack', 'browse', 'dist', 'browse');
       if (existsSync(local)) return local;
     }
@@ -39,6 +43,10 @@ export function locateBinary(): string | null {
 
   // Global fallback
   for (const m of markers) {
+    // Check for .js wrapper first (internal network mode)
+    const globalJs = join(home, m, 'skills', 'gstack', 'browse', 'dist', 'browse.js');
+    if (existsSync(globalJs)) return globalJs;
+    // Fall back to binary
     const global = join(home, m, 'skills', 'gstack', 'browse', 'dist', 'browse');
     if (existsSync(global)) return global;
   }

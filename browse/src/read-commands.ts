@@ -7,7 +7,7 @@
 
 import type { TabSession } from './tab-session';
 import { consoleBuffer, networkBuffer, dialogBuffer } from './buffers';
-import type { Page, Frame } from 'playwright';
+import type { Page, Frame } from 'playwright-core';
 import * as fs from 'fs';
 import * as path from 'path';
 import { TEMP_DIR } from './platform';

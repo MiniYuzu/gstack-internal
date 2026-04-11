@@ -16,7 +16,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { TEMP_DIR } from './platform';
 import { resolveConfig } from './config';
-import type { Frame } from 'playwright';
+import type { Frame } from 'playwright-core';
 
 /** Tokenize a pipe segment respecting double-quoted strings. */
 function tokenizePipeSegment(segment: string): string[] {

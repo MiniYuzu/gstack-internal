@@ -729,7 +729,9 @@ export function generateDesignSetup(ctx: TemplateContext): string {
 \`\`\`bash
 _ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
 D=""
-[ -n "$_ROOT" ] && [ -x "$_ROOT/${ctx.paths.localSkillRoot}/design/dist/design" ] && D="$_ROOT/${ctx.paths.localSkillRoot}/design/dist/design"
+# Try .js wrapper first (internal network compatible), then binary
+[ -n "$_ROOT" ] && [ -f "$_ROOT/${ctx.paths.localSkillRoot}/design/dist/design.js" ] && D="bun run $_ROOT/${ctx.paths.localSkillRoot}/design/dist/design.js"
+[ -n "$_ROOT" ] && [ -z "$D" ] && [ -x "$_ROOT/${ctx.paths.localSkillRoot}/design/dist/design" ] && D="$_ROOT/${ctx.paths.localSkillRoot}/design/dist/design"
 [ -z "$D" ] && D=${ctx.paths.designDir}/design
 if [ -x "$D" ]; then
   echo "DESIGN_READY: $D"
@@ -737,7 +739,9 @@ else
   echo "DESIGN_NOT_AVAILABLE"
 fi
 B=""
-[ -n "$_ROOT" ] && [ -x "$_ROOT/${ctx.paths.localSkillRoot}/browse/dist/browse" ] && B="$_ROOT/${ctx.paths.localSkillRoot}/browse/dist/browse"
+# Try .js wrapper first (internal network compatible), then binary
+[ -n "$_ROOT" ] && [ -f "$_ROOT/${ctx.paths.localSkillRoot}/browse/dist/browse.js" ] && B="bun run $_ROOT/${ctx.paths.localSkillRoot}/browse/dist/browse.js"
+[ -n "$_ROOT" ] && [ -z "$B" ] && [ -x "$_ROOT/${ctx.paths.localSkillRoot}/browse/dist/browse" ] && B="$_ROOT/${ctx.paths.localSkillRoot}/browse/dist/browse"
 [ -z "$B" ] && B=${ctx.paths.browseDir}/browse
 if [ -x "$B" ]; then
   echo "BROWSE_READY: $B"
@@ -774,7 +778,9 @@ export function generateDesignMockup(ctx: TemplateContext): string {
 \`\`\`bash
 _ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
 D=""
-[ -n "$_ROOT" ] && [ -x "$_ROOT/${ctx.paths.localSkillRoot}/design/dist/design" ] && D="$_ROOT/${ctx.paths.localSkillRoot}/design/dist/design"
+# Try .js wrapper first (internal network compatible), then binary
+[ -n "$_ROOT" ] && [ -f "$_ROOT/${ctx.paths.localSkillRoot}/design/dist/design.js" ] && D="bun run $_ROOT/${ctx.paths.localSkillRoot}/design/dist/design.js"
+[ -n "$_ROOT" ] && [ -z "$D" ] && [ -x "$_ROOT/${ctx.paths.localSkillRoot}/design/dist/design" ] && D="$_ROOT/${ctx.paths.localSkillRoot}/design/dist/design"
 [ -z "$D" ] && D=${ctx.paths.designDir}/design
 [ -x "$D" ] && echo "DESIGN_READY" || echo "DESIGN_NOT_AVAILABLE"
 \`\`\`

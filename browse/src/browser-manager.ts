@@ -15,7 +15,7 @@
  *   restores state. Falls back to clean slate on any failure.
  */
 
-import { chromium, type Browser, type BrowserContext, type BrowserContextOptions, type Page, type Locator, type Cookie } from 'playwright';
+import { chromium, type Browser, type BrowserContext, type BrowserContextOptions, type Page, type Locator, type Cookie } from 'playwright-core';
 import { addConsoleEntry, addNetworkEntry, addDialogEntry, networkBuffer, type DialogEntry } from './buffers';
 import { validateNavigationUrl } from './url-validation';
 import { TabSession, type RefEntry } from './tab-session';
@@ -145,6 +145,39 @@ export class BrowserManager {
     }
   }
 
+
+  /**
+   * Get Chrome/Chromium executable path from config or env.
+   * Checks: GSTACK_CHROMIUM_PATH env var, ~/.gstack/config.yaml chromium_path.
+   * Throws if no path is configured.
+   */
+  private getChromePath(): string {
+    // 1. Check environment variable
+    if (process.env.GSTACK_CHROMIUM_PATH) {
+      return process.env.GSTACK_CHROMIUM_PATH;
+    }
+
+    // 2. Check ~/.gstack/config.yaml
+    const fs = require('fs');
+    const path = require('path');
+    const configPath = path.join(process.env.HOME || '/tmp', '.gstack', 'config.yaml');
+    try {
+      const configContent = fs.readFileSync(configPath, 'utf-8');
+      const match = configContent.match(/^chromium_path:\s*(.+)$/m);
+      if (match) {
+        const chromePath = match[1].trim();
+        if (chromePath) return chromePath;
+      }
+    } catch {
+      // Config file doesn't exist or can't be read
+    }
+
+    throw new Error(
+      'Chrome/Chromium path not configured. Set GSTACK_CHROMIUM_PATH environment variable ' +
+      'or run: gstack-config set chromium_path /path/to/chrome'
+    );
+  }
+
   async launch() {
     // ─── Extension Support ────────────────────────────────────
     // BROWSE_EXTENSIONS_DIR points to an unpacked Chrome extension directory.
@@ -258,17 +291,16 @@ export class BrowserManager {
 
     // Support custom Chromium binary via GSTACK_CHROMIUM_PATH env var.
     // Used by GStack Browser.app to point at the bundled Chromium.
-    const executablePath = process.env.GSTACK_CHROMIUM_PATH || undefined;
+    const executablePath = this.getChromePath();
 
     // Rebrand Chromium → GStack Browser in macOS menu bar / Dock / Cmd+Tab.
     // Patch the Chromium .app's Info.plist so macOS shows our name.
     // This works for both dev mode (system Playwright cache) and .app bundle.
-    const chromePath = executablePath || chromium.executablePath();
     try {
       // Walk up from binary to the .app's Info.plist
       // e.g. .../Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing
       //   → .../Google Chrome for Testing.app/Contents/Info.plist
-      const chromeContentsDir = path.resolve(path.dirname(chromePath), '..');
+      const chromeContentsDir = path.resolve(path.dirname(executablePath), '..');
       const chromePlist = path.join(chromeContentsDir, 'Info.plist');
       if (fs.existsSync(chromePlist)) {
         const plistContent = fs.readFileSync(chromePlist, 'utf-8');
@@ -307,7 +339,7 @@ export class BrowserManager {
     let customUA: string | undefined;
     if (!this.customUserAgent) {
       // Detect Chrome version from the Chromium binary
-      const chromePath = executablePath || chromium.executablePath();
+      const chromePath = executablePath;
       try {
         const versionProc = Bun.spawnSync([chromePath, '--version'], {
           stdout: 'pipe', stderr: 'pipe', timeout: 5000,

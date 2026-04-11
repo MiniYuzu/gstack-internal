@@ -12,7 +12,7 @@
  *   navigation/tab switch/shutdown → re-create transparently on next call
  */
 
-import type { Page } from 'playwright';
+import type { Page } from 'playwright-core';
 
 // ─── Types ──────────────────────────────────────────────────────
 
