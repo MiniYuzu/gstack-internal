@@ -17,7 +17,7 @@
  * Later: "click @e3" → look up Locator → locator.click()
  */
 
-import type { Page, Frame, Locator } from 'playwright';
+import type { Page, Frame, Locator } from 'playwright-core';
 import type { TabSession, RefEntry } from './tab-session';
 import * as Diff from 'diff';
 import { TEMP_DIR, isPathWithin } from './platform';

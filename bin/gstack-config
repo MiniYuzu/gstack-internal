@@ -43,6 +43,10 @@ CONFIG_HEADER='# gstack configuration — edit freely, changes take effect on ne
 # gstack_contributor: false # true = file field reports when gstack misbehaves
 # skip_eng_review: false    # true = skip eng review gate in /ship (not recommended)
 #
+# ─── Browser ─────────────────────────────────────────────────────────
+# chromium_path: /path/to/chrome  # Path to Chrome/Chromium binary for headed mode
+#                                  # Falls back to GSTACK_CHROMIUM_PATH env var
+#
 '
 
 case "${1:-}" in

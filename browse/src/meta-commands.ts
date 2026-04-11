@@ -13,7 +13,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { TEMP_DIR, isPathWithin } from './platform';
 import { resolveConfig } from './config';
-import type { Frame } from 'playwright';
+import type { Frame } from 'playwright-core';
 
 // Security: Path validation to prevent path traversal attacks
 // Resolve safe directories through realpathSync to handle symlinks (e.g., macOS /tmp → /private/tmp)

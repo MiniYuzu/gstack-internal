@@ -11,7 +11,7 @@
  */
 
 import { randomBytes } from 'crypto';
-import type { Page, Frame } from 'playwright';
+import type { Page, Frame } from 'playwright-core';
 
 // ─── Datamarking (Layer 1) ──────────────────────────────────────
 
