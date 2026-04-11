@@ -19,6 +19,7 @@ allowed-tools:
 
 Upgrade gstack to the latest version and show what's new.
 
+<!-- Update check disabled for internal network environment
 ## Inline upgrade flow
 
 This section is referenced by all skill preambles when they detect `UPGRADE_AVAILABLE`.
@@ -239,6 +240,7 @@ Happy shipping!
 ### Step 7: Continue
 
 After showing What's New, continue with whatever skill the user originally invoked. The upgrade is done — no further action needed.
+-->
 
 ---
 
@@ -246,6 +248,7 @@ After showing What's New, continue with whatever skill the user originally invok
 
 When invoked directly as `/gstack-upgrade` (not from a preamble):
 
+<!-- Update check disabled for internal network environment
 1. Force a fresh update check (bypass cache):
 ```bash
 ~/.claude/skills/gstack/bin/gstack-update-check --force 2>/dev/null || \
@@ -256,6 +259,9 @@ Use the output to determine if an upgrade is available.
 2. If `UPGRADE_AVAILABLE <old> <new>`: follow Steps 2-6 above.
 
 3. If no output (primary is up to date): check for a stale local vendored copy.
+-->
+<!-- Internal network: skip update check, proceed directly to version check -->
+1. Check for a stale local vendored copy:
 
 Run the Step 2 bash block above to detect the primary install type and directory (`INSTALL_TYPE` and `INSTALL_DIR`). Then run the Step 4.5 detection bash block above to check for a local vendored copy (`LOCAL_GSTACK`) and team mode status (`TEAM_MODE`).
 
