@@ -105,7 +105,9 @@ export function generateBrowseSetup(ctx: TemplateContext): string {
 \`\`\`bash
 _ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
 B=""
-[ -n "$_ROOT" ] && [ -x "$_ROOT/${ctx.paths.localSkillRoot}/browse/dist/browse" ] && B="$_ROOT/${ctx.paths.localSkillRoot}/browse/dist/browse"
+# Try .js wrapper first (internal network compatible), then binary
+[ -n "$_ROOT" ] && [ -f "$_ROOT/${ctx.paths.localSkillRoot}/browse/dist/browse.js" ] && B="bun run $_ROOT/${ctx.paths.localSkillRoot}/browse/dist/browse.js"
+[ -n "$_ROOT" ] && [ -z "$B" ] && [ -x "$_ROOT/${ctx.paths.localSkillRoot}/browse/dist/browse" ] && B="$_ROOT/${ctx.paths.localSkillRoot}/browse/dist/browse"
 [ -z "$B" ] && B=${ctx.paths.browseDir}/browse
 if [ -x "$B" ]; then
   echo "READY: $B"
