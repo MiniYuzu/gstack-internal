@@ -294,12 +294,11 @@ export class BrowserManager {
     // Rebrand Chromium → GStack Browser in macOS menu bar / Dock / Cmd+Tab.
     // Patch the Chromium .app's Info.plist so macOS shows our name.
     // This works for both dev mode (system Playwright cache) and .app bundle.
-    const chromePath = executablePath;
     try {
       // Walk up from binary to the .app's Info.plist
       // e.g. .../Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing
       //   → .../Google Chrome for Testing.app/Contents/Info.plist
-      const chromeContentsDir = path.resolve(path.dirname(chromePath), '..');
+      const chromeContentsDir = path.resolve(path.dirname(executablePath), '..');
       const chromePlist = path.join(chromeContentsDir, 'Info.plist');
       if (fs.existsSync(chromePlist)) {
         const plistContent = fs.readFileSync(chromePlist, 'utf-8');

@@ -18,7 +18,6 @@ bun build "$SRC_DIR/server.ts" \
   --target=node \
   --outfile "$DIST_DIR/server-node.mjs" \
   --external playwright-core \
-  --external playwright-core \
   --external diff \
   --external "bun:sqlite"
 

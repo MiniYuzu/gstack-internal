@@ -45,7 +45,7 @@ CONFIG_HEADER='# gstack configuration — edit freely, changes take effect on ne
 #
 # ─── Browser ─────────────────────────────────────────────────────────
 # chromium_path: /path/to/chrome  # Path to Chrome/Chromium binary for headed mode
-#                                  # Falls back to GSTACK_CHROMIUM_PATH env var
+#                                  # Environment variable GSTACK_CHROMIUM_PATH takes precedence
 #
 '
 
