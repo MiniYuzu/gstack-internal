@@ -65,8 +65,7 @@ gstack/
 │   └── dist/        # Compiled binary
 ├── hosts/           # Typed host configs (one per AI agent)
 │   ├── claude.ts    # Primary host config
-│   ├── codex.ts, factory.ts, kiro.ts  # Existing hosts
-│   ├── opencode.ts, slate.ts, cursor.ts, openclaw.ts  # New hosts
+│   └── opencode.ts  # OpenCode host config
 │   └── index.ts     # Registry: exports all, derives Host type
 ├── scripts/         # Build + DX tooling
 │   ├── gen-skill-docs.ts  # Template → SKILL.md generator (config-driven)

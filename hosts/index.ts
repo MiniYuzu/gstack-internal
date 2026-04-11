@@ -34,7 +34,6 @@ export function getHostConfig(name: string): HostConfig {
 
 /**
  * Resolve a host name from a CLI argument, handling aliases.
- * e.g., 'agents' → 'codex', 'droid' → 'factory'
  */
 export function resolveHostArg(arg: string): string {
   // Direct name match

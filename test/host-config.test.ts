@@ -15,13 +15,7 @@ import {
   resolveHostArg,
   getExternalHosts,
   claude,
-  codex,
-  factory,
-  kiro,
   opencode,
-  slate,
-  cursor,
-  openclaw,
 } from '../hosts/index';
 import { HOST_PATHS } from '../scripts/resolvers/types';
 
@@ -30,8 +24,8 @@ const ROOT = path.resolve(import.meta.dir, '..');
 // ─── hosts/index.ts ─────────────────────────────────────────
 
 describe('hosts/index.ts', () => {
-  test('ALL_HOST_CONFIGS has 8 hosts', () => {
-    expect(ALL_HOST_CONFIGS.length).toBe(8);
+  test('ALL_HOST_CONFIGS has 2 hosts', () => {
+    expect(ALL_HOST_CONFIGS.length).toBe(2);
   });
 
   test('ALL_HOST_NAMES matches config names', () => {
@@ -46,19 +40,13 @@ describe('hosts/index.ts', () => {
 
   test('individual config re-exports match registry', () => {
     expect(claude.name).toBe('claude');
-    expect(codex.name).toBe('codex');
-    expect(factory.name).toBe('factory');
-    expect(kiro.name).toBe('kiro');
     expect(opencode.name).toBe('opencode');
-    expect(slate.name).toBe('slate');
-    expect(cursor.name).toBe('cursor');
-    expect(openclaw.name).toBe('openclaw');
   });
 
   test('getHostConfig returns correct config', () => {
-    const c = getHostConfig('codex');
-    expect(c.name).toBe('codex');
-    expect(c.displayName).toBe('OpenAI Codex CLI');
+    const c = getHostConfig('opencode');
+    expect(c.name).toBe('opencode');
+    expect(c.displayName).toBe('OpenCode');
   });
 
   test('getHostConfig throws on unknown host', () => {
@@ -71,9 +59,9 @@ describe('hosts/index.ts', () => {
     }
   });
 
-  test('resolveHostArg resolves aliases', () => {
-    expect(resolveHostArg('agents')).toBe('codex');
-    expect(resolveHostArg('droid')).toBe('factory');
+  test('resolveHostArg throws on unknown alias', () => {
+    // opencode has no aliases defined, so unknown alias should throw
+    expect(() => resolveHostArg('unknown-alias')).toThrow('Unknown host');
   });
 
   test('resolveHostArg throws on unknown alias', () => {
@@ -216,25 +204,25 @@ describe('validateAllConfigs', () => {
   });
 
   test('duplicate name detected', () => {
-    const dup = { ...codex, name: 'claude' } as HostConfig;
+    const dup = { ...opencode, name: 'claude' } as HostConfig;
     const errors = validateAllConfigs([claude, dup]);
     expect(errors.some(e => e.includes('Duplicate name'))).toBe(true);
   });
 
   test('duplicate hostSubdir detected', () => {
-    const dup = { ...codex, name: 'dup-host', hostSubdir: '.claude', globalRoot: '.dup/skills/gstack' } as HostConfig;
+    const dup = { ...opencode, name: 'dup-host', hostSubdir: '.claude', globalRoot: '.dup/skills/gstack' } as HostConfig;
     const errors = validateAllConfigs([claude, dup]);
     expect(errors.some(e => e.includes('Duplicate hostSubdir'))).toBe(true);
   });
 
   test('duplicate globalRoot detected', () => {
-    const dup = { ...codex, name: 'dup-host', hostSubdir: '.dup', globalRoot: '.claude/skills/gstack' } as HostConfig;
+    const dup = { ...opencode, name: 'dup-host', hostSubdir: '.dup', globalRoot: '.claude/skills/gstack' } as HostConfig;
     const errors = validateAllConfigs([claude, dup]);
     expect(errors.some(e => e.includes('Duplicate globalRoot'))).toBe(true);
   });
 
   test('per-config validation errors are prefixed with host name', () => {
-    const bad = { ...codex, name: 'BAD', cliCommand: 'also bad' } as HostConfig;
+    const bad = { ...opencode, name: 'BAD', cliCommand: 'also bad' } as HostConfig;
     const errors = validateAllConfigs([bad]);
     expect(errors.every(e => e.startsWith('[BAD]'))).toBe(true);
   });
@@ -250,11 +238,11 @@ describe('HOST_PATHS derivation from configs', () => {
     expect(HOST_PATHS.claude.designDir).toBe('~/.claude/skills/gstack/design/dist');
   });
 
-  test('Codex uses $GSTACK_ROOT env vars', () => {
-    expect(HOST_PATHS.codex.skillRoot).toBe('$GSTACK_ROOT');
-    expect(HOST_PATHS.codex.binDir).toBe('$GSTACK_BIN');
-    expect(HOST_PATHS.codex.browseDir).toBe('$GSTACK_BROWSE');
-    expect(HOST_PATHS.codex.designDir).toBe('$GSTACK_DESIGN');
+  test('OpenCode uses $GSTACK_ROOT env vars', () => {
+    expect(HOST_PATHS.opencode.skillRoot).toBe('$GSTACK_ROOT');
+    expect(HOST_PATHS.opencode.binDir).toBe('$GSTACK_BIN');
+    expect(HOST_PATHS.opencode.browseDir).toBe('$GSTACK_BROWSE');
+    expect(HOST_PATHS.opencode.designDir).toBe('$GSTACK_DESIGN');
   });
 
   test('every host with usesEnvVars=true gets env var paths', () => {
@@ -312,25 +300,25 @@ describe('host-config-export.ts CLI', () => {
   });
 
   test('get returns string field', () => {
-    const { stdout, exitCode } = run('get', 'codex', 'globalRoot');
+    const { stdout, exitCode } = run('get', 'opencode', 'globalRoot');
     expect(exitCode).toBe(0);
-    expect(stdout).toBe('.codex/skills/gstack');
+    expect(stdout).toBe('.config/opencode/skills/gstack');
   });
 
   test('get returns boolean as 1/0', () => {
     const { stdout: t } = run('get', 'claude', 'usesEnvVars');
     expect(t).toBe('0');
-    const { stdout: f } = run('get', 'codex', 'usesEnvVars');
+    const { stdout: f } = run('get', 'opencode', 'usesEnvVars');
     expect(f).toBe('1');
   });
 
   test('get with missing args exits 1', () => {
-    const { exitCode } = run('get', 'codex');
+    const { exitCode } = run('get', 'opencode');
     expect(exitCode).toBe(1);
   });
 
   test('get with unknown field exits 1', () => {
-    const { exitCode } = run('get', 'codex', 'nonexistent');
+    const { exitCode } = run('get', 'opencode', 'nonexistent');
     expect(exitCode).toBe(1);
   });
 
@@ -346,7 +334,7 @@ describe('host-config-export.ts CLI', () => {
   });
 
   test('symlinks returns asset list', () => {
-    const { stdout, exitCode } = run('symlinks', 'codex');
+    const { stdout, exitCode } = run('symlinks', 'opencode');
     expect(exitCode).toBe(0);
     const lines = stdout.split('\n');
     expect(lines).toContain('bin');
@@ -380,18 +368,6 @@ describe('golden-file regression', () => {
   test('Claude ship skill matches golden baseline', () => {
     const golden = fs.readFileSync(path.join(GOLDEN_DIR, 'claude-ship-SKILL.md'), 'utf-8');
     const current = fs.readFileSync(path.join(ROOT, 'ship', 'SKILL.md'), 'utf-8');
-    expect(current).toBe(golden);
-  });
-
-  test('Codex ship skill matches golden baseline', () => {
-    const golden = fs.readFileSync(path.join(GOLDEN_DIR, 'codex-ship-SKILL.md'), 'utf-8');
-    const current = fs.readFileSync(path.join(ROOT, '.agents', 'skills', 'gstack-ship', 'SKILL.md'), 'utf-8');
-    expect(current).toBe(golden);
-  });
-
-  test('Factory ship skill matches golden baseline', () => {
-    const golden = fs.readFileSync(path.join(GOLDEN_DIR, 'factory-ship-SKILL.md'), 'utf-8');
-    const current = fs.readFileSync(path.join(ROOT, '.factory', 'skills', 'gstack-ship', 'SKILL.md'), 'utf-8');
     expect(current).toBe(golden);
   });
 });
@@ -429,76 +405,8 @@ describe('host config correctness', () => {
     }
   });
 
-  test('codex has 1024-char description limit with error behavior', () => {
-    expect(codex.frontmatter.descriptionLimit).toBe(1024);
-    expect(codex.frontmatter.descriptionLimitBehavior).toBe('error');
-  });
-
-  test('codex generates openai.yaml metadata', () => {
-    expect(codex.generation.generateMetadata).toBe(true);
-    expect(codex.generation.metadataFormat).toBe('openai.yaml');
-  });
-
-  test('codex has sidecar config', () => {
-    expect(codex.sidecar).toBeDefined();
-    expect(codex.sidecar!.path).toBe('.agents/skills/gstack');
-  });
-
-  test('factory has tool rewrites', () => {
-    expect(factory.toolRewrites).toBeDefined();
-    expect(Object.keys(factory.toolRewrites!).length).toBeGreaterThan(0);
-    expect(factory.toolRewrites!['use the Bash tool']).toBe('run this command');
-  });
-
-  test('factory has conditional disable-model-invocation field', () => {
-    expect(factory.frontmatter.conditionalFields).toBeDefined();
-    expect(factory.frontmatter.conditionalFields!.length).toBe(1);
-    expect(factory.frontmatter.conditionalFields![0].if).toEqual({ sensitive: true });
-    expect(factory.frontmatter.conditionalFields![0].add).toEqual({ 'disable-model-invocation': true });
-  });
-
-  test('codex has suppressedResolvers for self-invocation prevention', () => {
-    expect(codex.suppressedResolvers).toBeDefined();
-    expect(codex.suppressedResolvers).toContain('CODEX_SECOND_OPINION');
-    expect(codex.suppressedResolvers).toContain('ADVERSARIAL_STEP');
-    expect(codex.suppressedResolvers).toContain('REVIEW_ARMY');
-  });
-
-  test('codex has boundary instruction', () => {
-    expect(codex.boundaryInstruction).toBeDefined();
-    expect(codex.boundaryInstruction).toContain('Do NOT read');
-  });
-
-  test('openclaw has tool rewrites for exec/read/write', () => {
-    expect(openclaw.toolRewrites).toBeDefined();
-    expect(openclaw.toolRewrites!['use the Bash tool']).toBe('use the exec tool');
-    expect(openclaw.toolRewrites!['use the Read tool']).toBe('use the read tool');
-  });
-
-  test('openclaw has CLAUDE.md→AGENTS.md path rewrite', () => {
-    expect(openclaw.pathRewrites.some(r => r.from === 'CLAUDE.md' && r.to === 'AGENTS.md')).toBe(true);
-  });
-
-  test('openclaw has adapter path', () => {
-    expect(openclaw.adapter).toBeDefined();
-    expect(openclaw.adapter).toContain('openclaw-adapter');
-  });
-
-  test('openclaw has no staticFiles (SOUL.md removed)', () => {
-    expect(openclaw.staticFiles).toBeUndefined();
-  });
-
-  test('openclaw includeSkills is empty (native skills replaced generated ones)', () => {
-    expect(openclaw.generation.includeSkills).toBeDefined();
-    expect(openclaw.generation.includeSkills!.length).toBe(0);
-  });
-
-  test('every host has coAuthorTrailer or undefined', () => {
-    // Claude, Codex, Factory, OpenClaw have explicit trailers
+  test('claude has coAuthorTrailer', () => {
     expect(claude.coAuthorTrailer).toContain('Claude');
-    expect(codex.coAuthorTrailer).toContain('Codex');
-    expect(factory.coAuthorTrailer).toContain('Factory');
-    expect(openclaw.coAuthorTrailer).toContain('OpenClaw');
   });
 
   test('every external host skips the codex skill', () => {
