@@ -3,7 +3,7 @@ name: design-shotgun
 preamble-tier: 2
 version: 1.0.0
 description: |
-  Design shotgun: generate multiple AI design variants, open a comparison board,
+  Design shotgun: generate multiple HTML wireframe variants, open a comparison board,
   collect structured feedback, and iterate. Standalone design exploration you can
   run anytime. Use when: "explore designs", "show me options", "design variants",
   "visual brainstorm", or "I don't like how this looks".
@@ -14,7 +14,6 @@ allowed-tools:
   - Read
   - Glob
   - Grep
-  - Agent
   - AskUserQuestion
 ---
 
@@ -22,11 +21,9 @@ allowed-tools:
 
 # /design-shotgun: Visual Design Exploration
 
-You are a design brainstorming partner. Generate multiple AI design variants, open them
+You are a design brainstorming partner. Generate multiple HTML wireframe variants, open them
 side-by-side in the user's browser, and iterate until they approve a direction. This is
 visual brainstorming, not a review process.
-
-{{DESIGN_SETUP}}
 
 ## Step 0: Session Detection
 
@@ -50,13 +47,13 @@ AskUserQuestion:
 > B) New exploration — start fresh with new or updated instructions
 > C) Something else"
 
-If A: regenerate the board from existing variant PNGs, reopen, and resume the feedback loop.
+If A: regenerate the board from existing variant HTML files, reopen, and resume the feedback loop.
 If B: proceed to Step 1.
 
 **If `NO_PREVIOUS_SESSIONS`:** Show the first-time message:
 
-"This is /design-shotgun — your visual brainstorming tool. I'll generate multiple AI
-design directions, open them side-by-side in your browser, and you pick your favorite.
+"This is /design-shotgun — your visual brainstorming tool. I'll generate multiple HTML
+wireframe directions, open them side-by-side in your browser, and you pick your favorite.
 You can run /design-shotgun anytime during development to explore design directions for
 any part of your product. Let's start."
 
@@ -101,8 +98,8 @@ curl -s -o /dev/null -w "%{http_code}" http://localhost:3000 2>/dev/null || echo
 ```
 
 If a local site is running AND the user referenced a URL or said something like "I don't
-like how this looks," screenshot the current page and use `$D evolve` instead of
-`$D variants` to generate improvement variants from the existing design.
+like how this looks," take a screenshot for reference and generate improvement wireframes
+based on the existing design.
 
 **AskUserQuestion with pre-filled context:** Pre-fill what you inferred from the codebase,
 DESIGN.md, and office-hours output. Then ask for what's missing. Frame as ONE question
@@ -132,7 +129,41 @@ unless the user explicitly requests a different direction."
 
 Limit to last 10 sessions. Try/catch JSON parse on each (skip corrupted files).
 
-## Step 3: Generate Variants
+## Step 3: Generate Design Direction Variants
+
+Generate N distinct design direction concepts as HTML wireframes. Each variant should be a different creative direction, not minor variations.
+
+**Step 3a: Concept Generation**
+
+Before generating, present N text concepts describing each variant's design direction:
+
+```
+I'll explore 3 directions:
+
+A) "Name" — one-line visual description of this direction
+B) "Name" — one-line visual description of this direction
+C) "Name" — one-line visual description of this direction
+```
+
+Draw on DESIGN.md, taste memory, and the user's request to make each concept distinct.
+
+**Step 3b: Concept Confirmation**
+
+Use AskUserQuestion to confirm before generating:
+
+> "These are the {N} directions I'll generate as HTML wireframes. Each will be a self-contained HTML file you can view in your browser."
+>
+> Options:
+> - A) Generate all {N} — looks good
+> - B) I want to change some concepts (tell me which)
+> - C) Add more variants
+> - D) Fewer variants
+
+If B: incorporate feedback, re-present concepts, re-confirm. Max 2 rounds.
+If C: add concepts, re-present, re-confirm.
+If D: drop specified concepts, re-present, re-confirm.
+
+**Step 3c: Generate HTML Wireframes**
 
 Set up the output directory:
 
@@ -145,121 +176,58 @@ echo "DESIGN_DIR: $_DESIGN_DIR"
 
 Replace `<screen-name>` with a descriptive kebab-case name from the context gathering.
 
-### Step 3a: Concept Generation
+For each confirmed concept, generate a rough HTML wireframe:
+- Use system fonts, thin gray borders, minimal styling
+- Show the core layout and interaction flow
+- Include realistic placeholder content
+- Self-contained (inline CSS, no external dependencies)
 
-Before any API calls, generate N text concepts describing each variant's design direction.
-Each concept should be a distinct creative direction, not a minor variation. Present them
-as a lettered list:
+Write each variant to `$_DESIGN_DIR/variant-{letter}.html`.
 
-```
-I'll explore 3 directions:
+Create comparison board HTML at `$_DESIGN_DIR/comparison-board.html`:
+- Show all variants side-by-side in a grid or tabs
+- Include variant letter, name, and brief description
+- Each variant should be viewable full-size via link/iframe
+- Clean, minimal styling for easy comparison
 
-A) "Name" — one-line visual description of this direction
-B) "Name" — one-line visual description of this direction
-C) "Name" — one-line visual description of this direction
-```
+**Step 3d: Present Variants**
 
-Draw on DESIGN.md, taste memory, and the user's request to make each concept distinct.
-
-### Step 3b: Concept Confirmation
-
-Use AskUserQuestion to confirm before spending API credits:
-
-> "These are the {N} directions I'll generate. Each takes ~60s, but I'll run them all
-> in parallel so total time is ~60 seconds regardless of count."
-
-Options:
-- A) Generate all {N} — looks good
-- B) I want to change some concepts (tell me which)
-- C) Add more variants (I'll suggest additional directions)
-- D) Fewer variants (tell me which to drop)
-
-If B: incorporate feedback, re-present concepts, re-confirm. Max 2 rounds.
-If C: add concepts, re-present, re-confirm.
-If D: drop specified concepts, re-present, re-confirm.
-
-### Step 3c: Parallel Generation
-
-**If evolving from a screenshot** (user said "I don't like THIS"), take ONE screenshot
-first:
+Show each variant HTML file path to the user. If browse is available:
 
 ```bash
-$B screenshot "$_DESIGN_DIR/current.png"
+$B goto "file://$_DESIGN_DIR/comparison-board.html"
 ```
 
-**Launch N Agent subagents in a single message** (parallel execution). Use the Agent
-tool with `subagent_type: "general-purpose"` for each variant. Each agent is independent
-and handles its own generation, quality check, verification, and retry.
-
-**Important: $D path propagation.** The `$D` variable from DESIGN SETUP is a shell
-variable that agents do NOT inherit. Substitute the resolved absolute path (from the
-`DESIGN_READY: /path/to/design` output in Step 0) into each agent prompt.
-
-**Agent prompt template** (one per variant, substitute all `{...}` values):
-
-```
-Generate a design variant and save it.
-
-Design binary: {absolute path to $D binary}
-Brief: {the full variant-specific brief for this direction}
-Output: /tmp/variant-{letter}.png
-Final location: {_DESIGN_DIR absolute path}/variant-{letter}.png
-
-Steps:
-1. Run: {$D path} generate --brief "{brief}" --output /tmp/variant-{letter}.png
-2. If the command fails with a rate limit error (429 or "rate limit"), wait 5 seconds
-   and retry. Up to 3 retries.
-3. If the output file is missing or empty after the command succeeds, retry once.
-4. Copy: cp /tmp/variant-{letter}.png {_DESIGN_DIR}/variant-{letter}.png
-5. Quality check: {$D path} check --image {_DESIGN_DIR}/variant-{letter}.png --brief "{brief}"
-   If quality check fails, retry generation once.
-6. Verify: ls -lh {_DESIGN_DIR}/variant-{letter}.png
-7. Report exactly one of:
-   VARIANT_{letter}_DONE: {file size}
-   VARIANT_{letter}_FAILED: {error description}
-   VARIANT_{letter}_RATE_LIMITED: exhausted retries
-```
-
-For the evolve path, replace step 1 with:
-```
-{$D path} evolve --screenshot {_DESIGN_DIR}/current.png --brief "{brief}" --output /tmp/variant-{letter}.png
-```
-
-**Why /tmp/ then cp?** In observed sessions, `$D generate --output ~/.gstack/...`
-failed with "The operation was aborted" while `--output /tmp/...` succeeded. This is
-a sandbox restriction. Always generate to `/tmp/` first, then `cp`.
-
-### Step 3d: Results
-
-After all agents complete:
-
-1. Read each generated PNG inline (Read tool) so the user sees all variants at once.
-2. Report status: "All {N} variants generated in ~{actual time}. {successes} succeeded,
-   {failures} failed."
-3. For any failures: report explicitly with the error. Do NOT silently skip.
-4. If zero variants succeeded: fall back to sequential generation (one at a time with
-   `$D generate`, showing each as it lands). Tell the user: "Parallel generation failed
-   (likely rate limiting). Falling back to sequential..."
-5. Proceed to Step 4 (comparison board).
-
-**Dynamic image list for comparison board:** When proceeding to Step 4, construct the
-image list from whatever variant files actually exist, not a hardcoded A/B/C list:
-
-```bash
-setopt +o nomatch 2>/dev/null || true  # zsh compat
-_IMAGES=$(ls "$_DESIGN_DIR"/variant-*.png 2>/dev/null | tr '\n' ',' | sed 's/,$//')
-```
-
-Use `$_IMAGES` in the `$D compare --images` command.
+Otherwise, provide the file path for manual opening.
 
 ## Step 4: Comparison Board + Feedback Loop
 
-{{DESIGN_SHOTGUN_LOOP}}
+The comparison board is a static HTML file at `$_DESIGN_DIR/comparison-board.html`.
+Collect feedback via AskUserQuestion:
+
+> "Review the design variants in your browser. Which direction do you prefer?
+>
+> A) Variant A — [name]
+> B) Variant B — [name]
+> C) Variant C — [name]
+> ...
+> X) None of these — generate new directions
+>
+> Rate each variant 1-5:
+> - A: _
+> - B: _
+> - C: _
+>
+> What specifically do you like/dislike about each?
+> What should I change in the next round?"
+
+If the user chooses X (new directions): go back to Step 3a with refined brief.
+
+If the user selects a preferred variant: proceed to Step 5.
 
 ## Step 5: Feedback Confirmation
 
-After receiving feedback (via HTTP POST or AskUserQuestion fallback), output a clear
-summary confirming what was understood:
+After receiving feedback via AskUserQuestion, output a clear summary confirming what was understood:
 
 "Here's what I understood from your feedback:
 
@@ -277,7 +245,7 @@ Use AskUserQuestion to confirm before saving.
 Write `approved.json` to `$_DESIGN_DIR/` (handled by the loop above).
 
 If invoked from another skill: return the structured feedback for that skill to consume.
-The calling skill reads `approved.json` and the approved variant PNG.
+The calling skill reads `approved.json` and the approved variant HTML file.
 
 If standalone, offer next steps via AskUserQuestion:
 
@@ -290,7 +258,7 @@ If standalone, offer next steps via AskUserQuestion:
 ## Important Rules
 
 1. **Never save to `.context/`, `docs/designs/`, or `/tmp/`.** All design artifacts go
-   to `~/.gstack/projects/$SLUG/designs/`. This is enforced. See DESIGN_SETUP above.
+   to `~/.gstack/projects/$SLUG/designs/`. This is enforced.
 2. **Show variants inline before opening the board.** The user should see designs
    immediately in their terminal. The browser board is for detailed feedback.
 3. **Confirm feedback before saving.** Always summarize what you understood and verify.

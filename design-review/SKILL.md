@@ -800,58 +800,9 @@ Only commit if there are changes. Stage all bootstrap files (config, test direct
 
 ---
 
-**Find the gstack designer (optional — enables target mockup generation):**
+**Visual reference preparation:**
 
-## DESIGN SETUP (run this check BEFORE any design mockup command)
-
-```bash
-_ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
-D=""
-# Try .js wrapper first (internal network compatible), then binary
-[ -n "$_ROOT" ] && [ -f "$_ROOT/.claude/skills/gstack/design/dist/design.js" ] && D="bun run $_ROOT/.claude/skills/gstack/design/dist/design.js"
-[ -n "$_ROOT" ] && [ -z "$D" ] && [ -x "$_ROOT/.claude/skills/gstack/design/dist/design" ] && D="$_ROOT/.claude/skills/gstack/design/dist/design"
-[ -z "$D" ] && D=~/.claude/skills/gstack/design/dist/design
-if [ -x "$D" ]; then
-  echo "DESIGN_READY: $D"
-else
-  echo "DESIGN_NOT_AVAILABLE"
-fi
-B=""
-# Try .js wrapper first (internal network compatible), then binary
-[ -n "$_ROOT" ] && [ -f "$_ROOT/.claude/skills/gstack/browse/dist/browse.js" ] && B="bun run $_ROOT/.claude/skills/gstack/browse/dist/browse.js"
-[ -n "$_ROOT" ] && [ -z "$B" ] && [ -x "$_ROOT/.claude/skills/gstack/browse/dist/browse" ] && B="$_ROOT/.claude/skills/gstack/browse/dist/browse"
-[ -z "$B" ] && B=~/.claude/skills/gstack/browse/dist/browse
-if [ -x "$B" ]; then
-  echo "BROWSE_READY: $B"
-else
-  echo "BROWSE_NOT_AVAILABLE (will use 'open' to view comparison boards)"
-fi
-```
-
-If `DESIGN_NOT_AVAILABLE`: skip visual mockup generation and fall back to the
-existing HTML wireframe approach (`DESIGN_SKETCH`). Design mockups are a
-progressive enhancement, not a hard requirement.
-
-If `BROWSE_NOT_AVAILABLE`: use `open file://...` instead of `$B goto` to open
-comparison boards. The user just needs to see the HTML file in any browser.
-
-If `DESIGN_READY`: the design binary is available for visual mockup generation.
-Commands:
-- `$D generate --brief "..." --output /path.png` — generate a single mockup
-- `$D variants --brief "..." --count 3 --output-dir /path/` — generate N style variants
-- `$D compare --images "a.png,b.png,c.png" --output /path/board.html --serve` — comparison board + HTTP server
-- `$D serve --html /path/board.html` — serve comparison board and collect feedback via HTTP
-- `$D check --image /path.png --brief "..."` — vision quality gate
-- `$D iterate --session /path/session.json --feedback "..." --output /path.png` — iterate
-
-**CRITICAL PATH RULE:** All design artifacts (mockups, comparison boards, approved.json)
-MUST be saved to `~/.gstack/projects/$SLUG/designs/`, NEVER to `.context/`,
-`docs/designs/`, `/tmp/`, or any project-local directory. Design artifacts are USER
-data, not project files. They persist across branches, conversations, and workspaces.
-
-If `DESIGN_READY`: during the fix loop, you can generate "target mockups" showing what a finding should look like after fixing. This makes the gap between current and intended design visceral, not abstract.
-
-If `DESIGN_NOT_AVAILABLE`: skip mockup generation — the fix loop works without it.
+During the fix loop, use browse screenshots to capture before/after states. For complex layout or hierarchy issues, take additional screenshots with annotations to clarify the intended design direction.
 
 **Create output directories:**
 
@@ -1437,15 +1388,17 @@ For each fixable finding, in impact order:
 - ONLY modify files directly related to the finding
 - Prefer CSS/styling changes over structural component changes
 
-### 8a.5. Target Mockup (if DESIGN_READY)
+### 8a.5. Visual Reference (Optional)
 
-If the gstack designer is available and the finding involves visual layout, hierarchy, or spacing (not just a CSS value fix like wrong color or font-size), generate a target mockup showing what the corrected version should look like:
+For complex layout, hierarchy, or spacing issues (not just CSS value fixes like wrong color or font-size), take an annotated screenshot showing the current state and describe the intended fix:
 
 ```bash
-$D generate --brief "<description of the page/component with the finding fixed, referencing DESIGN.md constraints>" --output "$REPORT_DIR/screenshots/finding-NNN-target.png"
+$B screenshot "$REPORT_DIR/screenshots/finding-NNN-before.png"
 ```
 
-Show the user: "Here's the current state (screenshot) and here's what it should look like (mockup). Now I'll fix the source to match."
+Add visual annotations or a text description explaining what the corrected version should look like, referencing DESIGN.md constraints if available.
+
+Show the user: "Here's the current state. The fix should achieve: [description]. Now I'll update the source to match."
 
 This step is optional — skip for trivial CSS fixes (wrong hex color, missing padding value). Use it for findings where the intended design isn't obvious from the description alone.
 
@@ -1453,7 +1406,7 @@ This step is optional — skip for trivial CSS fixes (wrong hex color, missing p
 
 - Read the source code, understand the context
 - Make the **minimal fix** — smallest change that resolves the design issue
-- If a target mockup was generated in 8a.5, use it as the visual reference for the fix
+- If visual reference was captured in 8a.5, use it as the guide for the fix
 - CSS-only changes are preferred (safer, more reversible)
 - Do NOT refactor surrounding code, add features, or "improve" unrelated things
 
@@ -1523,7 +1476,7 @@ DESIGN-FIX RISK:
 After all fixes are applied:
 
 1. Re-run the design audit on all affected pages
-2. If target mockups were generated during the fix loop AND `DESIGN_READY`: run `$D verify --mockup "$REPORT_DIR/screenshots/finding-NNN-target.png" --screenshot "$REPORT_DIR/screenshots/finding-NNN-after.png"` to compare the fix result against the target. Include pass/fail in the report.
+2. Compare after screenshots against the before screenshots and any visual references captured during the fix loop to verify improvements. Document pass/fail status in the report.
 3. Compute final design score and AI slop score
 4. **If final scores are WORSE than baseline:** WARN prominently — something regressed
 

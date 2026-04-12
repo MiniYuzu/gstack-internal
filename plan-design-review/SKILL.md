@@ -612,26 +612,21 @@ choices.
 Do NOT make any code changes. Do NOT start implementation. Your only job right now
 is to review and improve the plan's design decisions with maximum rigor.
 
-### The gstack designer — YOUR PRIMARY TOOL
+### Visual Design Exploration
 
-You have the **gstack designer**, an AI mockup generator that creates real visual mockups
-from design briefs. This is your signature capability. Use it by default, not as an
-afterthought.
+For design reviews, create HTML wireframes or text descriptions to explore visual
+directions. These are lightweight, fast, and require no external tools.
 
-**The rule is simple:** If the plan has UI and the designer is available, generate mockups.
-Don't ask permission. Don't write text descriptions of what a homepage "could look like."
-Show it. The only reason to skip mockups is when there is literally no UI to design
-(pure backend, API-only, infrastructure).
+**The rule is simple:** If the plan has UI, create wireframes. Don't just write text
+descriptions of what a homepage "could look like" — show it with simple HTML wireframes.
+The only reason to skip wireframes is when there is literally no UI to design (pure
+backend, API-only, infrastructure).
 
-Design reviews without visuals are just opinion. Mockups ARE the plan for design work.
+Design reviews without visuals are just opinion. Wireframes ARE the plan for design work.
 You need to see the design before you code it.
 
-Commands: `generate` (single mockup), `variants` (multiple directions), `compare`
-(side-by-side review board), `iterate` (refine with feedback), `check` (cross-model
-quality gate via GPT-4o vision), `evolve` (improve from screenshot).
-
-Setup is handled by the DESIGN SETUP section below. If `DESIGN_READY` is printed,
-the designer is available and you should use it.
+Use the browse tool's HTML generation (`$B html`) to create wireframes, or describe
+the design approach in detail when wireframes aren't necessary.
 
 ## Design Principles
 
@@ -668,8 +663,8 @@ When reviewing a plan, empathy as simulation runs automatically. When rating, pr
 
 ## Priority Hierarchy Under Context Pressure
 
-Step 0 > Step 0.5 (mockups — generate by default) > Interaction State Coverage > AI Slop Risk > Information Architecture > User Journey > everything else.
-Never skip Step 0 or mockup generation (when the designer is available). Mockups before review passes is non-negotiable. Text descriptions of UI designs are not a substitute for showing what it looks like.
+Step 0 > Step 0.5 (wireframes — create by default) > Interaction State Coverage > AI Slop Risk > Information Architecture > User Journey > everything else.
+Never skip Step 0 or wireframe generation. Wireframes before review passes is non-negotiable. Text-only descriptions of UI designs are not a substitute for showing what it looks like.
 
 ## PRE-REVIEW SYSTEM AUDIT (before Step 0)
 
@@ -700,53 +695,6 @@ Analyze the plan. If it involves NONE of: new UI screens/pages, changes to exist
 
 Report findings before proceeding to Step 0.
 
-## DESIGN SETUP (run this check BEFORE any design mockup command)
-
-```bash
-_ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
-D=""
-# Try .js wrapper first (internal network compatible), then binary
-[ -n "$_ROOT" ] && [ -f "$_ROOT/.claude/skills/gstack/design/dist/design.js" ] && D="bun run $_ROOT/.claude/skills/gstack/design/dist/design.js"
-[ -n "$_ROOT" ] && [ -z "$D" ] && [ -x "$_ROOT/.claude/skills/gstack/design/dist/design" ] && D="$_ROOT/.claude/skills/gstack/design/dist/design"
-[ -z "$D" ] && D=~/.claude/skills/gstack/design/dist/design
-if [ -x "$D" ]; then
-  echo "DESIGN_READY: $D"
-else
-  echo "DESIGN_NOT_AVAILABLE"
-fi
-B=""
-# Try .js wrapper first (internal network compatible), then binary
-[ -n "$_ROOT" ] && [ -f "$_ROOT/.claude/skills/gstack/browse/dist/browse.js" ] && B="bun run $_ROOT/.claude/skills/gstack/browse/dist/browse.js"
-[ -n "$_ROOT" ] && [ -z "$B" ] && [ -x "$_ROOT/.claude/skills/gstack/browse/dist/browse" ] && B="$_ROOT/.claude/skills/gstack/browse/dist/browse"
-[ -z "$B" ] && B=~/.claude/skills/gstack/browse/dist/browse
-if [ -x "$B" ]; then
-  echo "BROWSE_READY: $B"
-else
-  echo "BROWSE_NOT_AVAILABLE (will use 'open' to view comparison boards)"
-fi
-```
-
-If `DESIGN_NOT_AVAILABLE`: skip visual mockup generation and fall back to the
-existing HTML wireframe approach (`DESIGN_SKETCH`). Design mockups are a
-progressive enhancement, not a hard requirement.
-
-If `BROWSE_NOT_AVAILABLE`: use `open file://...` instead of `$B goto` to open
-comparison boards. The user just needs to see the HTML file in any browser.
-
-If `DESIGN_READY`: the design binary is available for visual mockup generation.
-Commands:
-- `$D generate --brief "..." --output /path.png` — generate a single mockup
-- `$D variants --brief "..." --count 3 --output-dir /path/` — generate N style variants
-- `$D compare --images "a.png,b.png,c.png" --output /path/board.html --serve` — comparison board + HTTP server
-- `$D serve --html /path/board.html` — serve comparison board and collect feedback via HTTP
-- `$D check --image /path.png --brief "..."` — vision quality gate
-- `$D iterate --session /path/session.json --feedback "..." --output /path.png` — iterate
-
-**CRITICAL PATH RULE:** All design artifacts (mockups, comparison boards, approved.json)
-MUST be saved to `~/.gstack/projects/$SLUG/designs/`, NEVER to `.context/`,
-`docs/designs/`, `/tmp/`, or any project-local directory. Design artifacts are USER
-data, not project files. They persist across branches, conversations, and workspaces.
-
 ## Step 0: Design Scope Assessment
 
 ### 0A. Initial Design Rating
@@ -768,176 +716,82 @@ AskUserQuestion: "I've rated this plan {N}/10 on design completeness. The bigges
 
 **STOP.** Do NOT proceed until user responds.
 
-## Step 0.5: Visual Mockups (DEFAULT when DESIGN_READY)
+## Step 0.5: Visual Design Exploration (HTML Wireframes)
 
-If the plan involves any UI — screens, pages, components, visual changes — AND the
-gstack designer is available (`DESIGN_READY` was printed during setup), **generate
-mockups immediately.** Do not ask permission. This is the default behavior.
+If the plan involves UI — screens, pages, components, visual changes — create HTML
+wireframes to explore design directions. These are lightweight, fast, and require
+no external tools.
 
-Tell the user: "Generating visual mockups with the gstack designer. This is how we
-review design — real visuals, not text descriptions."
+**When to create wireframes:**
+- New screens or pages are being designed
+- Layout or information architecture changes
+- User wants to visualize options before implementation
 
-The ONLY time you skip mockups is when:
-- `DESIGN_NOT_AVAILABLE` was printed (designer binary not found)
-- The plan has zero UI scope (pure backend/API/infrastructure)
+**When to skip:** Pure backend/API changes with no UI scope
 
-If the user explicitly says "skip mockups" or "text only", respect that. Otherwise, generate.
+### Creating HTML Wireframes
 
-**PLAN MODE EXCEPTION — ALWAYS RUN:** These commands write design artifacts to
-`~/.gstack/projects/$SLUG/designs/` (user config directory, not project files).
-Mockups are design artifacts that inform the plan, not code changes. The gstack
-designer outputs PNGs and HTML comparison boards for human review during the
-planning phase. Generating mockups during planning is the whole point.
-
-Allowed commands under this exception:
-- `mkdir -p ~/.gstack/projects/$SLUG/designs/...`
-- `$D generate`, `$D variants`, `$D compare`, `$D iterate`, `$D evolve`, `$D check`
-- `open` (fallback for viewing boards when `$B` is not available)
-
-First, set up the output directory. Name it after the screen/feature being designed and today's date:
+Create simple HTML wireframes using the browse tool's HTML generation capability:
 
 ```bash
 eval "$(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)"
 _DESIGN_DIR=~/.gstack/projects/$SLUG/designs/<screen-name>-$(date +%Y%m%d)
 mkdir -p "$_DESIGN_DIR"
-echo "DESIGN_DIR: $_DESIGN_DIR"
 ```
 
-Replace `<screen-name>` with a descriptive kebab-case name (e.g., `homepage-variants`, `settings-page`, `onboarding-flow`).
+Replace `<screen-name>` with a descriptive kebab-case name (e.g., `homepage-wireframes`,
+`settings-page`, `onboarding-flow`).
 
-**Generate mockups ONE AT A TIME in this skill.** The inline review flow generates
-fewer variants and benefits from sequential control. Note: /design-shotgun uses
-parallel Agent subagents for variant generation, which works at Tier 2+ (15+ RPM).
-The sequential constraint here is specific to plan-design-review's inline pattern.
-
-For each UI screen/section in scope, construct a design brief from the plan's description (and DESIGN.md if present) and generate variants:
+Generate HTML wireframes with the browse tool:
 
 ```bash
-$D variants --brief "<description assembled from plan + DESIGN.md constraints>" --count 3 --output-dir "$_DESIGN_DIR/"
+$B html --content '<!DOCTYPE html>
+<html>
+<head><title>Wireframe Option A</title></head>
+<body style="font-family: system-ui; max-width: 800px; margin: 0 auto; padding: 20px;">
+  <h1>Page Title</h1>
+  <!-- Wireframe content based on plan description -->
+  <div style="border: 2px dashed #ccc; padding: 20px; margin: 10px 0;">
+    <p>Navigation area</p>
+  </div>
+  <div style="border: 2px dashed #ccc; padding: 40px; margin: 10px 0;">
+    <p>Main content area</p>
+  </div>
+</body>
+</html>' --output "$_DESIGN_DIR/wireframe-A.html"
 ```
 
-After generation, run a cross-model quality check on each variant:
+Create 2-3 variants exploring different layouts or approaches. Save each to a
+separate HTML file (wireframe-A.html, wireframe-B.html, etc.).
+
+### Reviewing Wireframes
+
+After generating wireframes, open them for review:
 
 ```bash
-$D check --image "$_DESIGN_DIR/variant-A.png" --brief "<the original brief>"
+open "$_DESIGN_DIR/wireframe-A.html"
 ```
 
-Flag any variants that fail the quality check. Offer to regenerate failures.
+Present the wireframes to the user with your analysis:
+- What works about each option
+- Tradeoffs between approaches
+- Recommendations based on design principles
 
-**Do NOT show variants inline via Read tool and ask for preferences.** Proceed
-directly to the Comparison Board + Feedback Loop section below. The comparison board
-IS the chooser — it has rating controls, comments, remix/regenerate, and structured
-feedback output. Showing mockups inline is a degraded experience.
+Use AskUserQuestion to get feedback: "I've created 3 wireframe options. Review them
+in your browser. Which direction feels right for this design? Any changes before
+we finalize the approach?"
 
-### Comparison Board + Feedback Loop
+Note the approved direction. This becomes the reference for all subsequent review passes.
 
-Create the comparison board and serve it over HTTP:
+### Alternative: Text Descriptions
 
-```bash
-$D compare --images "$_DESIGN_DIR/variant-A.png,$_DESIGN_DIR/variant-B.png,$_DESIGN_DIR/variant-C.png" --output "$_DESIGN_DIR/design-board.html" --serve
-```
+For simpler designs, you can describe the visual approach in text:
 
-This command generates the board HTML, starts an HTTP server on a random port,
-and opens it in the user's default browser. **Run it in the background** with `&`
-because the server needs to stay running while the user interacts with the board.
-
-Parse the port from stderr output: `SERVE_STARTED: port=XXXXX`. You need this
-for the board URL and for reloading during regeneration cycles.
-
-**PRIMARY WAIT: AskUserQuestion with board URL**
-
-After the board is serving, use AskUserQuestion to wait for the user. Include the
-board URL so they can click it if they lost the browser tab:
-
-"I've opened a comparison board with the design variants:
-http://127.0.0.1:<PORT>/ — Rate them, leave comments, remix
-elements you like, and click Submit when you're done. Let me know when you've
-submitted your feedback (or paste your preferences here). If you clicked
-Regenerate or Remix on the board, tell me and I'll generate new variants."
-
-**Do NOT use AskUserQuestion to ask which variant the user prefers.** The comparison
-board IS the chooser. AskUserQuestion is just the blocking wait mechanism.
-
-**After the user responds to AskUserQuestion:**
-
-Check for feedback files next to the board HTML:
-- `$_DESIGN_DIR/feedback.json` — written when user clicks Submit (final choice)
-- `$_DESIGN_DIR/feedback-pending.json` — written when user clicks Regenerate/Remix/More Like This
-
-```bash
-if [ -f "$_DESIGN_DIR/feedback.json" ]; then
-  echo "SUBMIT_RECEIVED"
-  cat "$_DESIGN_DIR/feedback.json"
-elif [ -f "$_DESIGN_DIR/feedback-pending.json" ]; then
-  echo "REGENERATE_RECEIVED"
-  cat "$_DESIGN_DIR/feedback-pending.json"
-  rm "$_DESIGN_DIR/feedback-pending.json"
-else
-  echo "NO_FEEDBACK_FILE"
-fi
-```
-
-The feedback JSON has this shape:
-```json
-{
-  "preferred": "A",
-  "ratings": { "A": 4, "B": 3, "C": 2 },
-  "comments": { "A": "Love the spacing" },
-  "overall": "Go with A, bigger CTA",
-  "regenerated": false
-}
-```
-
-**If `feedback.json` found:** The user clicked Submit on the board.
-Read `preferred`, `ratings`, `comments`, `overall` from the JSON. Proceed with
-the approved variant.
-
-**If `feedback-pending.json` found:** The user clicked Regenerate/Remix on the board.
-1. Read `regenerateAction` from the JSON (`"different"`, `"match"`, `"more_like_B"`,
-   `"remix"`, or custom text)
-2. If `regenerateAction` is `"remix"`, read `remixSpec` (e.g. `{"layout":"A","colors":"B"}`)
-3. Generate new variants with `$D iterate` or `$D variants` using updated brief
-4. Create new board: `$D compare --images "..." --output "$_DESIGN_DIR/design-board.html"`
-5. Reload the board in the user's browser (same tab):
-   `curl -s -X POST http://127.0.0.1:PORT/api/reload -H 'Content-Type: application/json' -d '{"html":"$_DESIGN_DIR/design-board.html"}'`
-6. The board auto-refreshes. **AskUserQuestion again** with the same board URL to
-   wait for the next round of feedback. Repeat until `feedback.json` appears.
-
-**If `NO_FEEDBACK_FILE`:** The user typed their preferences directly in the
-AskUserQuestion response instead of using the board. Use their text response
-as the feedback.
-
-**POLLING FALLBACK:** Only use polling if `$D serve` fails (no port available).
-In that case, show each variant inline using the Read tool (so the user can see them),
-then use AskUserQuestion:
-"The comparison board server failed to start. I've shown the variants above.
-Which do you prefer? Any feedback?"
-
-**After receiving feedback (any path):** Output a clear summary confirming
-what was understood:
-
-"Here's what I understood from your feedback:
-PREFERRED: Variant [X]
-RATINGS: [list]
-YOUR NOTES: [comments]
-DIRECTION: [overall]
-
-Is this right?"
-
-Use AskUserQuestion to verify before proceeding.
-
-**Save the approved choice:**
-```bash
-echo '{"approved_variant":"<V>","feedback":"<FB>","date":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'","screen":"<SCREEN>","branch":"'$(git branch --show-current 2>/dev/null)'"}' > "$_DESIGN_DIR/approved.json"
-```
-
-**Do NOT use AskUserQuestion to ask which variant the user picked.** Read `feedback.json` — it already contains their preferred variant, ratings, comments, and overall feedback. Only use AskUserQuestion to confirm you understood the feedback correctly, never to re-ask what they chose.
-
-Note which direction was approved. This becomes the visual reference for all subsequent review passes.
-
-**Multiple variants/screens:** If the user asked for multiple variants (e.g., "5 versions of the homepage"), generate ALL as separate variant sets with their own comparison boards. Each screen/variant set gets its own subdirectory under `designs/`. Complete all mockup generation and user selection before starting review passes.
-
-**If `DESIGN_NOT_AVAILABLE`:** Tell the user: "The gstack designer isn't set up yet. Run `$D setup` to enable visual mockups. Proceeding with text-only review, but you're missing the best part." Then proceed to review passes with text-based review.
+"For this screen, I recommend:
+- **Layout:** Two-column on desktop, stacked on mobile
+- **Hierarchy:** Page title prominent, secondary actions in a toolbar
+- **Key elements:** [list components and their priority]
+- **Empty state:** [describe what users see when there's no data]"
 
 ## Design Outside Voices (parallel)
 
@@ -1061,20 +915,35 @@ Pattern:
 
 Re-run loop: invoke /plan-design-review again → re-rate → sections at 8+ get a quick pass, sections below 8 get full treatment.
 
-### "Show me what 10/10 looks like" (requires design binary)
+### "Show me what 10/10 looks like"
 
-If `DESIGN_READY` was printed during setup AND a dimension rates below 7/10,
-offer to generate a visual mockup showing what the improved version would look like:
+If a dimension rates below 7/10, describe what the improved version would look like
+using detailed text descriptions or HTML wireframes:
+
+**Text description approach:**
+"A 10/10 for Information Architecture would look like:
+- Clear visual hierarchy with primary action at top
+- Secondary actions grouped in a toolbar
+- Content organized by user priority, not data structure
+- Empty state with context and primary CTA"
+
+**HTML wireframe approach:**
+Create a quick HTML wireframe showing the improved layout:
 
 ```bash
-$D generate --brief "<description of what 10/10 looks like for this dimension>" --output /tmp/gstack-ideal-<dimension>.png
+$B html --content '<!DOCTYPE html>
+<html>
+<head><title>10/10 Version - Information Architecture</title></head>
+<body style="font-family: system-ui; max-width: 800px; margin: 0 auto; padding: 20px;">
+  <h1>Improved Layout</h1>
+  <!-- Wireframe showing the 10/10 version -->
+</body>
+</html>' --output /tmp/gstack-ideal-<dimension>.html
+open /tmp/gstack-ideal-<dimension>.html
 ```
 
-Show the mockup to the user via the Read tool. This makes the gap between
-"what the plan describes" and "what it should look like" visceral, not abstract.
-
-If the design binary is not available, skip this and continue with text-based
-descriptions of what 10/10 looks like.
+This makes the gap between "what the plan describes" and "what it should look like"
+concrete, not abstract.
 
 ## Review Sections (7 passes, after scope is agreed)
 
@@ -1223,7 +1092,7 @@ Source: [OpenAI "Designing Delightful Frontends with GPT-5.4"](https://developer
 - "Hero section" → what makes this hero feel like THIS product?
 - "Clean, modern UI" → meaningless. Replace with actual design decisions.
 - "Dashboard with widgets" → what makes this NOT every other dashboard?
-If visual mockups were generated in Step 0.5, evaluate them against the AI slop blacklist above. Read each mockup image using the Read tool. Does the mockup fall into generic patterns (3-column grid, centered hero, stock-photo feel)? If so, flag it and offer to regenerate with more specific direction via `$D iterate --feedback "..."`.
+If HTML wireframes were created in Step 0.5, evaluate them against the AI slop blacklist above. Does the wireframe fall into generic patterns (3-column grid, centered hero, stock-photo feel)? If so, flag it and offer to create revised wireframes with more specific direction.
 **STOP.** AskUserQuestion once per issue. Do NOT batch. Recommend + WHY.
 
 ### Pass 5: Design System Alignment
@@ -1246,16 +1115,16 @@ Surface ambiguities that will haunt implementation:
   Mobile nav pattern?          | Desktop nav hides behind hamburger
   ...
 ```
-If visual mockups were generated in Step 0.5, reference them as evidence when surfacing unresolved decisions. A mockup makes decisions concrete — e.g., "Your approved mockup shows a sidebar nav, but the plan doesn't specify mobile behavior. What happens to this sidebar on 375px?"
+If HTML wireframes were created in Step 0.5, reference them as evidence when surfacing unresolved decisions. A wireframe makes decisions concrete — e.g., "Your approved wireframe shows a sidebar nav, but the plan doesn't specify mobile behavior. What happens to this sidebar on 375px?"
 Each decision = one AskUserQuestion with recommendation + WHY + alternatives. Edit the plan with each decision as it's made.
 
 ### Post-Pass: Update Mockups (if generated)
 
-If mockups were generated in Step 0.5 and review passes changed significant design decisions (information architecture restructure, new states, layout changes), offer to regenerate (one-shot, not a loop):
+If wireframes were created in Step 0.5 and review passes changed significant design decisions (information architecture restructure, new states, layout changes), offer to regenerate (one-shot, not a loop):
 
-AskUserQuestion: "The review passes changed [list major design changes]. Want me to regenerate mockups to reflect the updated plan? This ensures the visual reference matches what we're actually building."
+AskUserQuestion: "The review passes changed [list major design changes]. Want me to regenerate wireframes to reflect the updated plan? This ensures the visual reference matches what we're actually building."
 
-If yes, use `$D iterate` with feedback summarizing the changes, or `$D variants` with an updated brief. Save to the same `$_DESIGN_DIR` directory.
+If yes, create new HTML wireframes with the updated design. Save to the same `$_DESIGN_DIR` directory.
 
 ## CRITICAL RULE — How to ask questions
 Follow the AskUserQuestion format from the Preamble above. Additional rules for plan design reviews:
@@ -1265,7 +1134,7 @@ Follow the AskUserQuestion format from the Preamble above. Additional rules for 
 * **Map to Design Principles above.** One sentence connecting your recommendation to a specific principle.
 * Label with issue NUMBER + option LETTER (e.g., "3A", "3B").
 * **Escape hatch:** If a section has no issues, say so and move on. If a gap has an obvious fix, state what you'll add and move on — don't waste a question on it. Only use AskUserQuestion when there is a genuine design choice with meaningful tradeoffs.
-* **NEVER use AskUserQuestion to ask which variant the user prefers.** Always create a comparison board first (`$D compare --serve`) and open it in the browser. The board has rating controls, comments, remix/regenerate buttons, and structured feedback output. Use AskUserQuestion ONLY to notify the user the board is open and wait for them to finish — not to present variants inline and ask "which do you prefer?" That is a degraded experience.
+* **NEVER use AskUserQuestion to ask which wireframe the user prefers.** Always open all wireframes in the browser first so they can compare side-by-side. Use AskUserQuestion ONLY to notify the user the wireframes are open and wait for their feedback — not to present wireframes inline and ask "which do you prefer?" That is a degraded experience.
 
 ## Required Outputs
 
@@ -1306,7 +1175,7 @@ Then present options: **A)** Add to TODOS.md **B)** Skip — not valuable enough
   | NOT in scope         | written (___ items)                         |
   | What already exists  | written                                     |
   | TODOS.md updates     | ___ items proposed                          |
-  | Approved Mockups     | ___ generated, ___ approved                  |
+  | Approved Wireframes  | ___ created, ___ approved                    |
   | Decisions made       | ___ added to plan                           |
   | Decisions deferred   | ___ (listed below)                          |
   | Overall design score | ___/10 → ___/10                             |
@@ -1319,19 +1188,19 @@ If any below 8: note what's unresolved and why (user chose to defer).
 ### Unresolved Decisions
 If any AskUserQuestion goes unanswered, note it here. Never silently default to an option.
 
-### Approved Mockups
+### Approved Wireframes
 
-If visual mockups were generated during this review, add to the plan file:
+If HTML wireframes were created during this review, add to the plan file:
 
 ```
-## Approved Mockups
+## Approved Wireframes
 
-| Screen/Section | Mockup Path | Direction | Notes |
-|----------------|-------------|-----------|-------|
-| [screen name]  | ~/.gstack/projects/$SLUG/designs/[folder]/[filename].png | [brief description] | [constraints from review] |
+| Screen/Section | Wireframe Path | Direction | Notes |
+|----------------|----------------|-----------|-------|
+| [screen name]  | ~/.gstack/projects/$SLUG/designs/[folder]/[filename].html | [brief description] | [constraints from review] |
 ```
 
-Include the full path to each approved mockup (the variant the user chose), a one-line description of the direction, and any constraints. The implementer reads this to know exactly which visual to build from. These persist across conversations and workspaces. If no mockups were generated, omit this section.
+Include the full path to each approved wireframe (the option the user chose), a one-line description of the direction, and any constraints. The implementer reads this to know exactly which visual to build from. These persist across conversations and workspaces. If no wireframes were created, omit this section.
 
 ## Review Log
 

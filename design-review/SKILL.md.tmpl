@@ -78,13 +78,9 @@ After the user chooses, execute their choice (commit or stash), then continue wi
 
 {{TEST_BOOTSTRAP}}
 
-**Find the gstack designer (optional — enables target mockup generation):**
+**Visual reference preparation:**
 
-{{DESIGN_SETUP}}
-
-If `DESIGN_READY`: during the fix loop, you can generate "target mockups" showing what a finding should look like after fixing. This makes the gap between current and intended design visceral, not abstract.
-
-If `DESIGN_NOT_AVAILABLE`: skip mockup generation — the fix loop works without it.
+During the fix loop, use browse screenshots to capture before/after states. For complex layout or hierarchy issues, take additional screenshots with annotations to clarify the intended design direction.
 
 **Create output directories:**
 
@@ -158,15 +154,17 @@ For each fixable finding, in impact order:
 - ONLY modify files directly related to the finding
 - Prefer CSS/styling changes over structural component changes
 
-### 8a.5. Target Mockup (if DESIGN_READY)
+### 8a.5. Visual Reference (Optional)
 
-If the gstack designer is available and the finding involves visual layout, hierarchy, or spacing (not just a CSS value fix like wrong color or font-size), generate a target mockup showing what the corrected version should look like:
+For complex layout, hierarchy, or spacing issues (not just CSS value fixes like wrong color or font-size), take an annotated screenshot showing the current state and describe the intended fix:
 
 ```bash
-$D generate --brief "<description of the page/component with the finding fixed, referencing DESIGN.md constraints>" --output "$REPORT_DIR/screenshots/finding-NNN-target.png"
+$B screenshot "$REPORT_DIR/screenshots/finding-NNN-before.png"
 ```
 
-Show the user: "Here's the current state (screenshot) and here's what it should look like (mockup). Now I'll fix the source to match."
+Add visual annotations or a text description explaining what the corrected version should look like, referencing DESIGN.md constraints if available.
+
+Show the user: "Here's the current state. The fix should achieve: [description]. Now I'll update the source to match."
 
 This step is optional — skip for trivial CSS fixes (wrong hex color, missing padding value). Use it for findings where the intended design isn't obvious from the description alone.
 
@@ -174,7 +172,7 @@ This step is optional — skip for trivial CSS fixes (wrong hex color, missing p
 
 - Read the source code, understand the context
 - Make the **minimal fix** — smallest change that resolves the design issue
-- If a target mockup was generated in 8a.5, use it as the visual reference for the fix
+- If visual reference was captured in 8a.5, use it as the guide for the fix
 - CSS-only changes are preferred (safer, more reversible)
 - Do NOT refactor surrounding code, add features, or "improve" unrelated things
 
@@ -244,7 +242,7 @@ DESIGN-FIX RISK:
 After all fixes are applied:
 
 1. Re-run the design audit on all affected pages
-2. If target mockups were generated during the fix loop AND `DESIGN_READY`: run `$D verify --mockup "$REPORT_DIR/screenshots/finding-NNN-target.png" --screenshot "$REPORT_DIR/screenshots/finding-NNN-after.png"` to compare the fix result against the target. Include pass/fail in the report.
+2. Compare after screenshots against the before screenshots and any visual references captured during the fix loop to verify improvements. Document pass/fail status in the report.
 3. Compute final design score and AI slop score
 4. **If final scores are WORSE than baseline:** WARN prominently — something regressed
 
