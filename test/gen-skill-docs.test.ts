@@ -1249,7 +1249,7 @@ describe('INVOKE_SKILL resolver', () => {
 
   test('INVOKE_SKILL output includes default skip list', () => {
     expect(ceoContent).toContain('Preamble (run first)');
-    expect(ceoContent).toContain('Telemetry (run last)');
+    expect(ceoContent).toContain('Telemetry (DISABLED)');
     expect(ceoContent).toContain('AskUserQuestion Format');
   });
 
@@ -2337,7 +2337,7 @@ describe('telemetry', () => {
   test('generated SKILL.md contains pending marker handling', () => {
     const content = fs.readFileSync(path.join(ROOT, 'SKILL.md'), 'utf-8');
     expect(content).toContain('.pending');
-    expect(content).toContain('_pending_finalize');
+    // Session cleanup preserved, external _pending_finalize removed
   });
 
   test('telemetry blocks appear in all skill files that use PREAMBLE', () => {
@@ -2347,7 +2347,7 @@ describe('telemetry', () => {
       if (fs.existsSync(skillPath)) {
         const content = fs.readFileSync(skillPath, 'utf-8');
         expect(content).toContain('_TEL_START');
-        expect(content).toContain('Telemetry (run last)');
+        expect(content).toContain('Telemetry (DISABLED)');
       }
     }
   });
