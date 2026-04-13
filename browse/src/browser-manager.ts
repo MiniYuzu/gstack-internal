@@ -66,10 +66,19 @@ export class BrowserManager {
   private watchStartTime: number = 0;
 
   // ─── Headed State ────────────────────────────────────────
-  private connectionMode: 'launched' | 'headed' = 'launched';
+  private connectionMode: 'launched' | 'headed' | 'cdp' = 'launched';
+  private cdpEndpoint: string | null = null;
   private intentionalDisconnect = false;
 
-  getConnectionMode(): 'launched' | 'headed' { return this.connectionMode; }
+  getConnectionMode(): 'launched' | 'headed' | 'cdp' { return this.connectionMode; }
+
+  getCDPStatus(): { connected: boolean; endpoint: string | null; mode: string } {
+    return {
+      connected: this.browser?.isConnected() || false,
+      endpoint: this.cdpEndpoint,
+      mode: this.connectionMode,
+    };
+  }
 
   // ─── Watch Mode Methods ─────────────────────────────────
   isWatching(): boolean { return this.watching; }
@@ -234,6 +243,70 @@ export class BrowserManager {
 
     // Create first tab
     await this.newTab();
+  }
+
+  /**
+   * Connect to an existing Chrome instance via CDP (Chrome DevTools Protocol).
+   * This allows reusing the user's logged-in sessions without cookie decryption.
+   *
+   * @param wsEndpoint - CDP WebSocket endpoint (e.g., 'http://localhost:9211')
+   * @returns Promise<void>
+   */
+  async connectOverCDP(wsEndpoint: string): Promise<void> {
+    if (this.browser || this.context) {
+      throw new Error('Browser already connected. Use disconnect() first.');
+    }
+
+    console.log(`[browse] Connecting to Chrome via CDP at ${wsEndpoint}...`);
+
+    try {
+      // Connect to existing Chrome via CDP
+      this.browser = await chromium.connectOverCDP(wsEndpoint);
+
+      // Use existing context or create new one
+      const contexts = this.browser.contexts();
+      if (contexts.length > 0) {
+        this.context = contexts[0];
+        console.log(`[browse] Reusing existing browser context`);
+      } else {
+        this.context = await this.browser.newContext({
+          viewport: { width: 1280, height: 720 },
+        });
+        console.log(`[browse] Created new browser context`);
+      }
+
+      // Use existing pages or create new one
+      const pages = this.context.pages();
+      if (pages.length > 0) {
+        // Use the first existing page
+        const firstPage = pages[0];
+        this.pages.set(0, firstPage);
+        this.tabSessions.set(0, new TabSession(firstPage));
+        this.activeTabId = 0;
+        console.log(`[browse] Reusing existing page: ${firstPage.url()}`);
+      } else {
+        // Create new page
+        const page = await this.context.newPage();
+        this.pages.set(0, page);
+        this.tabSessions.set(0, new TabSession(page));
+        this.activeTabId = 0;
+      }
+
+      this.connectionMode = 'cdp';
+      this.cdpEndpoint = wsEndpoint;
+      this.intentionalDisconnect = false;
+
+      // Handle disconnect
+      this.browser.on('disconnected', () => {
+        if (this.intentionalDisconnect) return;
+        console.error('[browse] CDP connection lost. Chrome may have closed.');
+        console.error('[browse] Run: $B connect-cdp to reconnect.');
+      });
+
+      console.log(`[browse] CDP connection established. Mode: cdp`);
+    } catch (err: any) {
+      throw new Error(`Failed to connect via CDP: ${err.message}. Ensure Chrome is running with --remote-debugging-port=9211`);
+    }
   }
 
   // ─── Headed Mode ─────────────────────────────────────────────
@@ -513,6 +586,12 @@ export class BrowserManager {
   }
 
   async close() {
+    if (this.connectionMode === 'cdp') {
+      // For CDP, only disconnect - don't close the user's Chrome
+      await this.disconnect();
+      return;
+    }
+
     if (this.browser || (this.connectionMode === 'headed' && this.context)) {
       if (this.connectionMode === 'headed') {
         // Headed/persistent context mode: close the context (which closes the browser)
@@ -532,6 +611,31 @@ export class BrowserManager {
       }
       this.browser = null;
     }
+  }
+
+  /**
+   * Disconnect from browser without closing it (for CDP mode).
+   */
+  async disconnect(): Promise<void> {
+    if (this.connectionMode === 'cdp') {
+      this.intentionalDisconnect = true;
+      if (this.browser) {
+        // For CDP, just disconnect without closing Chrome
+        await this.browser.disconnect().catch(() => {});
+      }
+      this.browser = null;
+      this.context = null;
+      this.pages.clear();
+      this.tabSessions.clear();
+      this.activeTabId = 0;
+      this.connectionMode = 'launched';
+      this.cdpEndpoint = null;
+      console.log('[browse] Disconnected from CDP (Chrome still running)');
+      return;
+    }
+
+    // For other modes, close is equivalent to disconnect
+    await this.close();
   }
 
   /** Health check — verifies Chromium is connected AND responsive */
