@@ -32,17 +32,14 @@ describe('Audit compliance', () => {
   });
 
   // Fix 2: Conditional telemetry — binary calls wrapped with existence check
-  test('preamble telemetry calls are conditional on _TEL and binary existence', () => {
+  test('preamble telemetry is disabled for internal network', () => {
     const preamble = readFileSync(join(ROOT, 'scripts/resolvers/preamble.ts'), 'utf-8');
-    // Pending finalization must check _TEL and binary existence
-    expect(preamble).toContain('_TEL" != "off"');
-    expect(preamble).toContain('-x ');
-    expect(preamble).toContain('gstack-telemetry-log');
-    // End-of-skill telemetry must also be conditional
-    const completionIdx = preamble.indexOf('Telemetry (run last)');
-    expect(completionIdx).toBeGreaterThan(-1);
-    const completionSection = preamble.slice(completionIdx);
-    expect(completionSection).toContain('_TEL" != "off"');
+    // Telemetry should be disabled
+    expect(preamble).toContain('Telemetry: Disabled');
+    // gstack-telemetry-log should not be present
+    expect(preamble).not.toContain('gstack-telemetry-log');
+    // Timeline logging should be preserved
+    expect(preamble).toContain('gstack-timeline-log');
   });
 
   // Round 2 Fix 1: W012 — Bun install uses checksum verification
@@ -103,13 +100,13 @@ describe('Audit compliance', () => {
     expect(cdp).toContain('--remote-allow-origins=');
   });
 
-  // Fix 2+6: All generated SKILL.md files with telemetry are conditional
-  test('all generated SKILL.md files with telemetry calls use conditional pattern', () => {
+  // Fix 2+6: All generated SKILL.md files should not contain external telemetry
+  test('all generated SKILL.md files do not contain external telemetry', () => {
     const skills = getAllSkillMds();
     for (const { name, content } of skills) {
-      if (content.includes('gstack-telemetry-log')) {
-        expect(content).toContain('_TEL" != "off"');
-      }
+      // External telemetry removed for internal network
+      expect(content).not.toContain('gstack-telemetry-log');
+      expect(content).not.toContain('gstack-telemetry-sync');
     }
   });
 });

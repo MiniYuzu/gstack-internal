@@ -1723,7 +1723,7 @@ describe('Codex generation (--host codex)', () => {
       // No skill should reference Claude paths
       expect(content).not.toContain('~/.claude/skills');
       expect(content).not.toContain('.claude/skills');
-      if (content.includes('gstack-config') || content.includes('gstack-update-check') || content.includes('gstack-telemetry-log')) {
+      if (content.includes('gstack-config') || content.includes('gstack-update-check')) {
         expect(content).toContain('$GSTACK_ROOT');
       }
       // If a skill references checklist.md, it must use the correct sidecar path
@@ -2321,15 +2321,17 @@ describe('telemetry', () => {
     expect(content).toContain('gstack-config set telemetry off');
   });
 
-  test('generated SKILL.md contains telemetry epilogue', () => {
+  test('generated SKILL.md contains disabled telemetry section', () => {
     const content = fs.readFileSync(path.join(ROOT, 'SKILL.md'), 'utf-8');
-    expect(content).toContain('Telemetry (run last)');
-    expect(content).toContain('gstack-telemetry-log');
+    expect(content).toContain('Telemetry (DISABLED)');
     expect(content).toContain('_TEL_END');
     expect(content).toContain('_TEL_DUR');
     expect(content).toContain('SKILL_NAME');
     expect(content).toContain('OUTCOME');
-    expect(content).toContain('PLAN MODE EXCEPTION');
+    // External telemetry removed
+    expect(content).not.toContain('gstack-telemetry-log');
+    // Local timeline preserved
+    expect(content).toContain('gstack-timeline-log');
   });
 
   test('generated SKILL.md contains pending marker handling', () => {
