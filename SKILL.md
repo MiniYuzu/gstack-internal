@@ -864,6 +864,7 @@ Refs are invalidated on navigation — run `snapshot` again after `goto`.
 | Command | Description |
 |---------|-------------|
 | `connect` | Launch headed Chromium with Chrome extension |
+| `connect-cdp [wsEndpoint]` | Connect to Chrome via CDP for cookie reuse (port 9211) |
 | `disconnect` | Disconnect headed browser, return to headless mode |
 | `focus [@ref]` | Bring headed browser window to foreground (macOS) |
 | `handoff [message]` | Open visible Chrome at current page for user takeover |

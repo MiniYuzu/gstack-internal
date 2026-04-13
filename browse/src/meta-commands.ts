@@ -88,13 +88,18 @@ export async function handleMetaCommand(
       const page = bm.getPage();
       const tabs = bm.getTabCount();
       const mode = bm.getConnectionMode();
-      return [
+      const cdpStatus = bm.getCDPStatus();
+      const lines = [
         `Status: healthy`,
         `Mode: ${mode}`,
         `URL: ${page.url()}`,
         `Tabs: ${tabs}`,
         `PID: ${process.pid}`,
-      ].join('\n');
+      ];
+      if (mode === 'cdp' && cdpStatus.endpoint) {
+        lines.push(`CDP Endpoint: ${cdpStatus.endpoint}`);
+      }
+      return lines.join('\n');
     }
 
     case 'url': {
@@ -406,6 +411,37 @@ export async function handleMetaCommand(
         return 'Already in headed mode with extension.';
       }
       return 'The connect command must be run from the CLI (not sent to a running server). Run: $B connect';
+    }
+
+    case 'connect-cdp': {
+      const wsEndpoint = args[0] || 'http://localhost:9211';
+
+      // Validate URL format
+      try {
+        new URL(wsEndpoint);
+      } catch {
+        throw new Error(`Invalid CDP endpoint: ${wsEndpoint}. Expected format: http://localhost:9211`);
+      }
+
+      // Check if already connected in CDP mode
+      if (bm.getConnectionMode() === 'cdp') {
+        const status = bm.getCDPStatus();
+        return `Already connected via CDP to ${status.endpoint}. Run '$B disconnect' first to reconnect.`;
+      }
+
+      // Disconnect from current mode if connected
+      if (bm.isHealthy()) {
+        console.log('[browse] Disconnecting from current browser...');
+        await bm.disconnect();
+      }
+
+      // Connect via CDP
+      await bm.connectOverCDP(wsEndpoint);
+
+      const page = bm.getPage();
+      const url = page.url();
+
+      return `Connected to Chrome via CDP at ${wsEndpoint}. Current page: ${url || '(blank)'}`;
     }
 
     case 'disconnect': {

@@ -7,7 +7,7 @@ description: |
   elements, verify page state, diff before/after actions, take annotated screenshots, check
   responsive layouts, test forms and uploads, handle dialogs, and assert element states.
   ~100ms per command. Use when you need to test a feature, verify a deployment, dogfood a
-  user flow, or file a bug with evidence. Use when asked to "open in browser", "test the
+  user flow, or file a bug with evidence. Use when you need to "open in browser", "test the
   site", "take a screenshot", or "dogfood this". (gstack)
 allowed-tools:
   - Bash
@@ -132,6 +132,60 @@ $B resume
 
 The browser preserves all state (cookies, localStorage, tabs) across the handoff.
 After `resume`, you get a fresh snapshot of wherever the user left off.
+
+## CDP Mode (Remote Chrome Connection)
+
+Connect to an existing Chrome instance via Chrome DevTools Protocol (CDP).
+This allows reusing your logged-in browser sessions without cookie import.
+
+### Use Cases
+
+- **Windows users**: Cookie import requires DPAPI support which is not implemented
+- **Internal networks**: Bypass cookie decryption entirely
+- **Shared sessions**: Connect multiple gstack instances to the same Chrome
+
+### Setup
+
+1. **Launch Chrome with remote debugging:**
+   ```bash
+   chrome-cdp-start  # Uses port 9211 and isolated profile
+   ```
+
+2. **Login to websites in the Chrome window**
+
+3. **Connect gstack:**
+   ```bash
+   $B connect-cdp
+   # Or with custom endpoint:
+   $B connect-cdp http://localhost:9222
+   ```
+
+4. **Verify connection:**
+   ```bash
+   $B status
+   # Mode: cdp
+   # Connected: yes
+   # CDP Endpoint: http://localhost:9211
+   ```
+
+### Differences from Normal Mode
+
+| Feature | Normal Mode | CDP Mode |
+|---------|-------------|----------|
+| Cookie management | Import via `cookie-import-browser` | Reuse Chrome's cookies directly |
+| Chrome lifecycle | gstack starts/stops Chrome | User controls Chrome lifecycle |
+| Visual browser | Headless by default | Must use headed Chrome |
+| Multi-tab | gstack manages tabs | Uses Chrome's existing tabs |
+
+### Disconnecting
+
+```bash
+$B disconnect  # Disconnects gstack, Chrome keeps running
+```
+
+To completely close:
+1. Disconnect gstack: `$B disconnect`
+2. Close Chrome window manually
 
 ## Snapshot Flags
 

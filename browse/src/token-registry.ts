@@ -62,7 +62,7 @@ export const SCOPE_ADMIN = new Set([
 
 /** Browser-wide destructive commands — can kill the server, disconnect headed mode */
 export const SCOPE_CONTROL = new Set([
-  'state', 'handoff', 'resume', 'stop', 'restart', 'connect', 'disconnect',
+  'state', 'handoff', 'resume', 'stop', 'restart', 'connect', 'connect-cdp', 'disconnect',
 ]);
 
 /** Meta commands — generally safe but some need scope checking */

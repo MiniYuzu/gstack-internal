@@ -425,13 +425,106 @@ plan's living status.
 
 Import logged-in sessions from your real Chromium browser into the headless browse session.
 
+## CDP Mode (Recommended for Windows/Internal Networks)
+
+If you're on Windows or an internal network without cookie decryption support,
+use **CDP Mode** to connect to your Chrome instance directly. This bypasses
+the need for cookie import entirely.
+
+### Prerequisites
+
+1. Chrome must be launched with remote debugging enabled
+2. Use port **9211** (gstack default)
+3. Use an isolated `--user-data-dir` to avoid interfering with your daily Chrome
+
+### Quick Start
+
+#### Windows
+
+```batch
+REM Step 1: Launch Chrome with CDP (run once)
+REM Note: Rename chrome-cdp-start.txt to .bat first, or run:
+cmd /c chrome-cdp-start.txt
+
+REM Step 2: Login to your websites in the Chrome window
+
+REM Step 3: Connect gstack
+$B connect-cdp
+
+REM Step 4: Start testing - you're already logged in!
+$B goto https://your-internal-app.com
+$B snapshot -i
+```
+
+#### macOS/Linux
+
+```bash
+# Step 1: Launch Chrome with CDP (run once)
+chrome-cdp-start
+
+# Step 2: Login to your websites in the Chrome window
+
+# Step 3: Connect gstack
+$B connect-cdp
+
+# Step 4: Start testing - you're already logged in!
+$B goto https://your-app.com
+$B snapshot -i
+```
+
+### Manual Chrome Launch (if script doesn't work)
+
+If the launch script fails, start Chrome manually:
+
+**Windows:**
+```batch
+"C:\Program Files\Google\Chrome\Application\chrome.exe" ^
+  --remote-debugging-port=9211 ^
+  --remote-allow-origins="http://localhost:9211" ^
+  --user-data-dir="%USERPROFILE%\.gstack\cdp-chrome-profile"
+```
+(Or use the provided chrome-cdp-start.txt script - rename to .bat before running)
+
+**macOS:**
+```bash
+/Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome \
+  --remote-debugging-port=9211 \
+  --remote-allow-origins="http://localhost:9211" \
+  --user-data-dir="$HOME/.gstack/cdp-chrome-profile"
+```
+
+### CDP Connection Status
+
+Check if you're in CDP mode:
+```bash
+$B status
+# Should show: Mode: cdp
+```
+
+### Disconnecting
+
+```bash
+# Disconnect gstack (Chrome keeps running)
+$B disconnect
+
+# Later, to reconnect
+$B connect-cdp
+```
+
+---
+
 ## CDP mode check
 
 First, check if browse is already connected to the user's real browser:
 ```bash
 $B status 2>/dev/null | grep -q "Mode: cdp" && echo "CDP_MODE=true" || echo "CDP_MODE=false"
 ```
-If `CDP_MODE=true`: tell the user "Not needed — you're connected to your real browser via CDP. Your cookies and sessions are already available." and stop. No cookie import needed.
+If `CDP_MODE=true`: tell the user "Already connected via CDP. Your browser session with all cookies is active." and stop. No cookie import needed.
+
+If the user is on **Windows** or requests CDP mode:
+1. Check if CDP Chrome is available: `curl -s http://localhost:9211/json/version`
+2. If available: guide them to run `$B connect-cdp`
+3. If not available: guide them to run `chrome-cdp-start` first
 
 ## How it works
 

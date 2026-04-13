@@ -35,7 +35,7 @@ export const META_COMMANDS = new Set([
   'chain', 'diff',
   'url', 'snapshot',
   'handoff', 'resume',
-  'connect', 'disconnect', 'focus',
+  'connect', 'connect-cdp', 'disconnect', 'focus',
   'inbox',
   'watch',
   'state',
@@ -131,6 +131,7 @@ export const COMMAND_DESCRIPTIONS: Record<string, { category: string; descriptio
   'resume':  { category: 'Server', description: 'Re-snapshot after user takeover, return control to AI', usage: 'resume' },
   // Headed mode
   'connect': { category: 'Server', description: 'Launch headed Chromium with Chrome extension', usage: 'connect' },
+  'connect-cdp': { category: 'Server', description: 'Connect to Chrome via CDP for cookie reuse (port 9211)', usage: 'connect-cdp [wsEndpoint]' },
   'disconnect': { category: 'Server', description: 'Disconnect headed browser, return to headless mode' },
   'focus':   { category: 'Server', description: 'Bring headed browser window to foreground (macOS)', usage: 'focus [@ref]' },
   // Inbox
