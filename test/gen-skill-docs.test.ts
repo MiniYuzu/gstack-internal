@@ -255,9 +255,11 @@ describe('gen-skill-docs', () => {
     expect(content).not.toContain('## Completeness Principle');
   });
 
-  test('generated SKILL.md contains telemetry line', () => {
+  test('generated SKILL.md contains analytics directory for timeline', () => {
     const content = fs.readFileSync(path.join(ROOT, 'SKILL.md'), 'utf-8');
-    expect(content).toContain('skill-usage.jsonl');
+    // skill-usage.jsonl removed with external telemetry
+    expect(content).not.toContain('skill-usage.jsonl');
+    // ~/.gstack/analytics preserved for timeline-log
     expect(content).toContain('~/.gstack/analytics');
   });
 
@@ -2426,24 +2428,13 @@ describe('community fixes wave', () => {
     }
   });
 
-  // #467 — Telemetry: preamble JSONL writes are gated by telemetry setting
-  test('preamble JSONL writes are inside telemetry conditional', () => {
+  // #467 — Telemetry: External telemetry removed for internal network
+  test('preamble does not contain external telemetry writes', () => {
     const preamble = fs.readFileSync(path.join(ROOT, 'scripts/resolvers/preamble.ts'), 'utf-8');
-    // Find all skill-usage.jsonl write lines
-    const lines = preamble.split('\n');
-    for (let i = 0; i < lines.length; i++) {
-      if (lines[i].includes('skill-usage.jsonl') && lines[i].includes('>>')) {
-        // Look backwards for a telemetry conditional within 5 lines
-        let foundConditional = false;
-        for (let j = i - 1; j >= Math.max(0, i - 5); j--) {
-          if (lines[j].includes('_TEL') && lines[j].includes('off')) {
-            foundConditional = true;
-            break;
-          }
-        }
-        expect(foundConditional).toBe(true);
-      }
-    }
+    // skill-usage.jsonl writes removed with external telemetry
+    expect(preamble).not.toContain('skill-usage.jsonl');
+    // Local timeline preserved
+    expect(preamble).toContain('gstack-timeline-log');
   });
 });
 
