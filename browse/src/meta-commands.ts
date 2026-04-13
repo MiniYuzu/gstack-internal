@@ -88,13 +88,18 @@ export async function handleMetaCommand(
       const page = bm.getPage();
       const tabs = bm.getTabCount();
       const mode = bm.getConnectionMode();
-      return [
+      const cdpStatus = bm.getCDPStatus();
+      const lines = [
         `Status: healthy`,
         `Mode: ${mode}`,
         `URL: ${page.url()}`,
         `Tabs: ${tabs}`,
         `PID: ${process.pid}`,
-      ].join('\n');
+      ];
+      if (mode === 'cdp' && cdpStatus.endpoint) {
+        lines.push(`CDP Endpoint: ${cdpStatus.endpoint}`);
+      }
+      return lines.join('\n');
     }
 
     case 'url': {
