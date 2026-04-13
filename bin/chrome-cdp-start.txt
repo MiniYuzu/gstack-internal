@@ -9,8 +9,11 @@ REM preventing interference with the user's daily Chrome instance.
 
 setlocal enabledelayedexpansion
 
-set "PORT=%~19211"
-if "%~1"=="" set "PORT=9211"
+if "%~1"=="" (
+    set "PORT=9211"
+) else (
+    set "PORT=%~1"
+)
 
 set "GSTACK_DATA_DIR=%USERPROFILE%\.gstack\cdp-chrome-profile"
 
