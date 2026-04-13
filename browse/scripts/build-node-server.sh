@@ -16,10 +16,11 @@ echo "Building Node-compatible server bundle..."
 # Step 1: Transpile server.ts to a single .mjs bundle (externalize runtime deps)
 bun build "$SRC_DIR/server.ts" \
   --target=node \
-  --outfile "$DIST_DIR/server-node.mjs" \
+  --outfile "$DIST_DIR" \
   --external playwright-core \
   --external diff \
   --external "bun:sqlite"
+mv "$DIST_DIR/server.js" "$DIST_DIR/server-node.mjs"
 
 # Step 2: Post-process
 # Replace import.meta.dir with a resolvable reference

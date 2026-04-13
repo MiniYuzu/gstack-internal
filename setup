@@ -32,6 +32,7 @@ esac
 INTERNAL_NETWORK=0
 if [ "${GSTACK_INTERNAL_NETWORK:-0}" = "1" ]; then
   INTERNAL_NETWORK=1
+  BROWSE_BIN="$SOURCE_GSTACK_DIR/browse/dist/browse.js"
 fi
 
 # ─── Quiet mode helper ────────────────────────────────────────
@@ -224,7 +225,7 @@ if [ "$NEEDS_BUILD" -eq 1 ]; then
     log "Building gstack for internal network (Node CLI mode)..."
     (
       cd "$SOURCE_GSTACK_DIR"
-      bun install
+      npm install --legacy-pear-deps
       bun run build:node
     )
   else

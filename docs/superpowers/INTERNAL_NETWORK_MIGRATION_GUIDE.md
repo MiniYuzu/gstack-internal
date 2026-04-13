@@ -21,10 +21,9 @@ cd /path/to/gstack
 
 # 创建压缩包（排除 node_modules 和二进制）
 tar -czf gstack-internal.tar.gz \
-  --exclude='node_modules' \
+  --exclude='docs' \
   --exclude='.git' \
-  --exclude='browse/dist/browse' \
-  --exclude='browse/dist/find-browse' \
+  --exclude='test' \
   --exclude='.DS_Store' \
   .
 ```

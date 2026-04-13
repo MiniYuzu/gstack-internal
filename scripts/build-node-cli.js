@@ -16,7 +16,6 @@ const rootDir = join(__dirname, '..');
 const wrappers = [
   join(rootDir, 'browse', 'dist', 'browse.js'),
   join(rootDir, 'browse', 'dist', 'find-browse.js'),
-  join(rootDir, 'design', 'dist', 'design.js'),
 ];
 
 for (const wrapper of wrappers) {
