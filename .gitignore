@@ -25,3 +25,4 @@ extension/.auth.json
 !.env.example
 supabase/.temp/
 .worktrees/
+.worktrees
