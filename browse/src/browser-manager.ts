@@ -17,7 +17,7 @@
 
 import { chromium, type Browser, type BrowserContext, type BrowserContextOptions, type Page, type Locator, type Cookie } from 'playwright-core';
 import { addConsoleEntry, addNetworkEntry, addDialogEntry, networkBuffer, type DialogEntry } from './buffers';
-import { validateNavigationUrl } from './url-validation';
+import { prepareNavigationUrl } from './url-validation';
 import { TabSession, type RefEntry } from './tab-session';
 
 export type { RefEntry };
@@ -658,9 +658,10 @@ export class BrowserManager {
   async newTab(url?: string, clientId?: string): Promise<number> {
     if (!this.context) throw new Error('Browser not launched');
 
-    // Validate URL before allocating page to avoid zombie tabs on rejection
+    // Validate and normalize URL before allocating page to avoid zombie tabs on rejection
+    let normalizedUrl: string | undefined;
     if (url) {
-      await validateNavigationUrl(url);
+      normalizedUrl = await prepareNavigationUrl(url);
     }
 
     const page = await this.context.newPage();
@@ -677,8 +678,8 @@ export class BrowserManager {
     // Wire up console/network/dialog capture
     this.wirePageEvents(page);
 
-    if (url) {
-      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 15000 });
+    if (normalizedUrl) {
+      await page.goto(normalizedUrl, { waitUntil: 'domcontentloaded', timeout: 15000 });
     }
 
     return id;
@@ -986,15 +987,16 @@ export class BrowserManager {
       this.wirePageEvents(page);
 
       if (saved.url) {
-        // Validate the saved URL before navigating — the state file is user-writable and
+        // Validate and normalize the saved URL before navigating — the state file is user-writable and
         // a tampered URL could navigate to cloud metadata endpoints or file:// URIs.
+        let normalizedUrl: string;
         try {
-          await validateNavigationUrl(saved.url);
+          normalizedUrl = await prepareNavigationUrl(saved.url);
         } catch (err: any) {
           console.warn(`[browse] Skipping invalid URL in state file: ${saved.url} — ${err.message}`);
           continue;
         }
-        await page.goto(saved.url, { waitUntil: 'domcontentloaded', timeout: 15000 }).catch(() => {});
+        await page.goto(normalizedUrl, { waitUntil: 'domcontentloaded', timeout: 15000 }).catch(() => {});
       }
 
       if (saved.storage) {
