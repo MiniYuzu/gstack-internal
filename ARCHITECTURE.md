@@ -239,132 +239,132 @@ Three reasons:
 
 Tier 1 runs on every `bun test`. Tiers 2+3 are gated behind `EVALS=1`. The idea is: catch 95% of issues for free, use LLMs only for judgment calls.
 
-## Setup and Build Pipeline
+## Setup 与构建管道
 
-### Overview
+### 概览
 
-`setup` is the single entry point for building and installing gstack. It handles everything from dependency verification to registering skills with multiple AI agent hosts (Claude, Codex, Kiro, Factory).
+`setup` 是构建和安装 gstack 的唯一入口。它处理从依赖验证到向多个 AI agent host（Claude、Codex、Kiro、Factory）注册 skill 的所有事情。
 
 ```
 ./setup [--host claude|codex|kiro|factory|auto] [--prefix|--no-prefix] [--team|--no-team]
 ```
 
-The script runs in 10 phases:
+脚本分 10 个阶段执行：
 
-| Phase | What | Key files |
-|-------|------|-----------|
-| 1. Dependency check | Verify `bun` is installed | — |
-| 2. Flag parsing | Resolve `--host`, `--prefix`, `--team` | `bin/gstack-config` |
-| 3. Build | Compile browse binary + generate skill docs | `package.json`, `scripts/gen-skill-docs.ts` |
-| 4. External host generation | Generate `.agents/`, `.factory/` skill docs | `scripts/gen-skill-docs.ts --host codex|factory` |
-| 5. Chromium verification | Launch Playwright to confirm browser works | — |
-| 6. Global state | Create `~/.gstack/projects/` | — |
-| 7. Claude install | Link skills into `~/.claude/skills/` | `bin/gstack-patch-names`, `bin/gstack-relink` |
-| 8. External host install | Link skills for Codex/Factory/Kiro | `hosts/*.ts` configs |
-| 9. Version migrations | Run idempotent migration scripts | `gstack-upgrade/migrations/` |
-| 10. Team mode hook | Register/unregister SessionStart hook | `bin/gstack-settings-hook` |
+| 阶段 | 内容 | 关键文件 |
+|------|------|----------|
+| 1. 依赖检查 | 验证 `bun` 是否已安装 | — |
+| 2. 参数解析 | 解析 `--host`、`--prefix`、`--team` | `bin/gstack-config` |
+| 3. 构建 | 编译 browse 二进制 + 生成 skill 文档 | `package.json`、`scripts/gen-skill-docs.ts` |
+| 4. 外部 host 生成 | 生成 `.agents/`、`.factory/` 的 skill 文档 | `scripts/gen-skill-docs.ts --host codex|factory` |
+| 5. Chromium 验证 | 启动 Playwright 确认浏览器可用 | — |
+| 6. 全局状态 | 创建 `~/.gstack/projects/` | — |
+| 7. Claude 安装 | 将 skill 链接到 `~/.claude/skills/` | `bin/gstack-patch-names`、`bin/gstack-relink` |
+| 8. 外部 host 安装 | 为 Codex/Factory/Kiro 链接 skill | `hosts/*.ts` 配置 |
+| 9. 版本迁移 | 运行幂等迁移脚本 | `gstack-upgrade/migrations/` |
+| 10. Team mode hook | 注册/注销 SessionStart hook | `bin/gstack-settings-hook` |
 
-### Smart rebuild detection
+### 智能重建检测
 
-Setup avoids unnecessary work by comparing mtimes:
+Setup 通过比较 mtime 避免不必要的工作：
 
-1. If `browse/dist/browse` doesn't exist → build
-2. If any file in `browse/src/` is newer than the binary → build
-3. If `package.json` or `bun.lock` is newer than the binary → build
-4. Otherwise skip the build phase entirely
+1. 如果 `browse/dist/browse` 不存在 → 构建
+2. 如果 `browse/src/` 下有任何文件比二进制新 → 构建
+3. 如果 `package.json` 或 `bun.lock` 比二进制新 → 构建
+4. 否则跳过整个构建阶段
 
-This means running `./setup` twice in a row takes under a second the second time.
+这意味着连续运行两次 `./setup`，第二次耗时不到一秒。
 
-### Build phase details
+### 构建阶段细节
 
-`bun run build` (normal mode):
+`bun run build`（正常模式）：
 
 ```bash
-bun run gen:skill-docs --host all           # Generate SKILL.md for all hosts
-bun build --compile browse/src/cli.ts       # Compile browse binary (~58MB)
+bun run gen:skill-docs --host all           # 为所有 host 生成 SKILL.md
+bun build --compile browse/src/cli.ts       # 编译 browse 二进制 (~58MB)
 bun build --compile browse/src/find-browse.ts
 bun build --compile bin/gstack-global-discover.ts
-bash browse/scripts/build-node-server.sh    # Node.js server bundle for Windows
-git rev-parse HEAD > browse/dist/.version   # Version marker for auto-restart
+bash browse/scripts/build-node-server.sh    # Windows 的 Node.js 服务器包
+git rev-parse HEAD > browse/dist/.version   # 版本标记，用于自动重启
 ```
 
-`bun run build:node` (internal network mode):
+`bun run build:node`（内网模式）：
 
-Uses `npm install --legacy-peer-deps` + `bun run build:node` instead of `bun build --compile`. Produces Node.js CLI scripts rather than compiled binaries, because the internal network environment lacks Bun's compiler.
+使用 `npm install --legacy-peer-deps` + `bun run build:node`，而不是 `bun build --compile`。产出 Node.js CLI 脚本而非编译后的二进制文件，因为内网环境缺少 Bun 编译器。
 
-### External host skill generation
+### 外部 host skill 生成
 
-Even when the binary is fresh (no build needed), setup always regenerates external host skills:
+即使二进制是最新的（无需构建），setup 也会始终重新生成外部 host 的 skill：
 
 ```bash
 bun run gen:skill-docs --host codex   # → .agents/skills/gstack-*/
 bun run gen:skill-docs --host factory # → .factory/skills/gstack-*/
 ```
 
-Generation is fast (<2s) and mtime-based staleness checks are fragile after clone/checkout/upgrade. Always regenerating prevents stale skill docs.
+生成很快（<2s），而基于 mtime 的过期检测在 clone/checkout/upgrade 后很脆弱。始终重新生成可防止 skill 文档过期。
 
-## Host-aware skill generation
+## 多 Host Skill 生成
 
-### The problem
+### 问题
 
-Different AI agents consume skills in different formats:
-- **Claude Code** reads `SKILL.md` with YAML frontmatter, uses `Skill` tool invocation
-- **Codex** reads `.md` files with OpenAI-compatible `agents/openai.yaml` metadata
-- **Kiro** reads `.md` files but uses different path conventions (`~/.kiro/` not `~/.claude/`)
-- **Factory Droid** has its own frontmatter restrictions
+不同的 AI agent 以不同格式消费 skill：
+- **Claude Code** 读取带 YAML frontmatter 的 `SKILL.md`，使用 `Skill` 工具调用
+- **Codex** 读取 `.md` 文件，附带 OpenAI 兼容的 `agents/openai.yaml` 元数据
+- **Kiro** 读取 `.md` 文件，但使用不同的路径约定（`~/.kiro/` 而非 `~/.claude/`）
+- **Factory Droid** 有自己的 frontmatter 限制
 
-Hand-maintaining a copy per host would guarantee drift.
+为每个 host 手动维护副本必然导致漂移。
 
-### The solution
+### 解决方案
 
-A single `.tmpl` template generates all host variants via declarative config:
+单个 `.tmpl` 模板通过声明式配置生成所有 host 变体：
 
 ```
 skill/SKILL.md.tmpl
     │
-    ├─ --host claude ──→ skill/SKILL.md              (primary host, minimal transform)
-    ├─ --host codex ───→ .agents/skills/gstack-skill/SKILL.md  (path rewrites, openai.yaml)
-    ├─ --host factory ─→ .factory/skills/gstack-skill/SKILL.md (frontmatter allowlist)
+    ├─ --host claude ──→ skill/SKILL.md              (主 host，最小转换)
+    ├─ --host codex ───→ .agents/skills/gstack-skill/SKILL.md  (路径重写、openai.yaml)
+    ├─ --host factory ─→ .factory/skills/gstack-skill/SKILL.md (frontmatter 白名单)
     └─ --host all ─────→ 以上所有
 ```
 
-### Generation pipeline
+### 生成管道
 
-`scripts/gen-skill-docs.ts` processes each template:
+`scripts/gen-skill-docs.ts` 处理每个模板：
 
-1. **Discovery**: `discoverTemplates()` scans root + one level of subdirs for `SKILL.md.tmpl`
-2. **Frontmatter parsing**: Extracts `name:`, `description:`, `preamble-tier:`, `benefits-from:`
-3. **Placeholder resolution**: Replaces `{{NAME}}` or `{{NAME:arg1:arg2}}` via resolver registry (`scripts/resolvers/index.ts`)
-4. **Voice trigger folding**: Collapses `voice-triggers` YAML into description prose
-5. **Host-specific frontmatter transform**: Strips/keeps fields per host config (allowlist/denylist mode)
-6. **Path rewrites**: `~/.claude/skills/gstack` → `~/.codex/skills/gstack`, etc.
-7. **Safety prose injection**: If hooks are present, inserts advisory text
-8. **Metadata generation**: For Codex, generates `agents/openai.yaml` with display name + description
-9. **Output**: Writes generated file + prepends `<!-- AUTO-GENERATED -->` header
+1. **发现**：`discoverTemplates()` 扫描根目录及一级子目录中的 `SKILL.md.tmpl`
+2. **Frontmatter 解析**：提取 `name:`、`description:`、`preamble-tier:`、`benefits-from:`
+3. **占位符解析**：通过 resolver 注册表（`scripts/resolvers/index.ts`）替换 `{{NAME}}` 或 `{{NAME:arg1:arg2}}`
+4. **语音触发折叠**：将 `voice-triggers` YAML 折叠进 description 正文
+5. **Host 专用 frontmatter 转换**：根据 host 配置剥离/保留字段（白名单/黑名单模式）
+6. **路径重写**：`~/.claude/skills/gstack` → `~/.codex/skills/gstack` 等
+7. **安全提示注入**：如果存在 hook，插入安全建议文本
+8. **元数据生成**：为 Codex 生成 `agents/openai.yaml`，包含显示名和描述
+9. **输出**：写入生成的文件，并前置 `<!-- AUTO-GENERATED -->` 头
 
-### Placeholder resolver registry
+### 占位符解析器注册表
 
-| Placeholder | Source | Generated by |
-|-------------|--------|--------------|
-| `{{PREAMBLE}}` | `scripts/resolvers/preamble.ts` | Update check, session tracking, learnings load, AskUserQuestion format, telemetry prompts |
-| `{{COMMAND_REFERENCE}}` | `browse/src/commands.ts` | Categorized command table with descriptions |
-| `{{SNAPSHOT_FLAGS}}` | `browse/src/snapshot.ts` | Flag reference with examples |
-| `{{BROWSE_SETUP}}` | `scripts/resolvers/browse.ts` | Binary discovery + `$B` setup instructions |
-| `{{BASE_BRANCH_DETECT}}` | `scripts/resolvers/utility.ts` | Dynamic base branch detection for PR-targeting skills |
-| `{{QA_METHODOLOGY}}` | `scripts/resolvers/testing.ts` | Shared QA methodology for `/qa` and `/qa-only` |
-| `{{DESIGN_METHODOLOGY}}` | `scripts/resolvers/design.ts` | Design audit methodology + hard rules |
-| `{{REVIEW_DASHBOARD}}` | `scripts/resolvers/review.ts` | Review Readiness Dashboard for `/ship` pre-flight |
-| `{{TEST_BOOTSTRAP}}` | `scripts/resolvers/testing.ts` | Test framework detection, bootstrap, CI/CD setup |
-| `{{CODEX_PLAN_REVIEW}}` | `scripts/resolvers/review.ts` | Cross-model plan review (Codex or Claude subagent) |
-| `{{LEARNINGS_SEARCH}}` | `scripts/resolvers/learnings.ts` | Search historical learnings at session start |
-| `{{LEARNINGS_LOG}}` | `scripts/resolvers/learnings.ts` | Log operational discoveries at session end |
+| 占位符 | 来源 | 生成内容 |
+|--------|------|----------|
+| `{{PREAMBLE}}` | `scripts/resolvers/preamble.ts` | 更新检查、会话追踪、学习加载、AskUserQuestion 格式、遥测提示 |
+| `{{COMMAND_REFERENCE}}` | `browse/src/commands.ts` | 分类命令表及描述 |
+| `{{SNAPSHOT_FLAGS}}` | `browse/src/snapshot.ts` | 标志参考及示例 |
+| `{{BROWSE_SETUP}}` | `scripts/resolvers/browse.ts` | 二进制发现 + `$B` 设置说明 |
+| `{{BASE_BRANCH_DETECT}}` | `scripts/resolvers/utility.ts` | PR 导向 skill 的动态基分支检测 |
+| `{{QA_METHODOLOGY}}` | `scripts/resolvers/testing.ts` | `/qa` 和 `/qa-only` 的共享 QA 方法论 |
+| `{{DESIGN_METHODOLOGY}}` | `scripts/resolvers/design.ts` | 设计审计方法论 + 硬规则 |
+| `{{REVIEW_DASHBOARD}}` | `scripts/resolvers/review.ts` | `/ship` 起飞前的审查准备仪表板 |
+| `{{TEST_BOOTSTRAP}}` | `scripts/resolvers/testing.ts` | 测试框架检测、引导、CI/CD 设置 |
+| `{{CODEX_PLAN_REVIEW}}` | `scripts/resolvers/review.ts` | 跨模型计划审查（Codex 或 Claude 子代理） |
+| `{{LEARNINGS_SEARCH}}` | `scripts/resolvers/learnings.ts` | 会话开始时搜索历史学习 |
+| `{{LEARNINGS_LOG}}` | `scripts/resolvers/learnings.ts` | 会话结束时记录操作发现 |
 
-### Declarative host config system
+### 声明式 Host 配置系统
 
-Each supported host is defined as a typed `HostConfig` in `hosts/*.ts`:
+每个支持的 host 在 `hosts/*.ts` 中定义为一个类型化的 `HostConfig`：
 
 ```typescript
-// hosts/claude.ts — primary host, minimal transformation
+// hosts/claude.ts — 主 host，最小转换
 const claude: HostConfig = {
   name: 'claude',
   displayName: 'Claude Code',
@@ -374,7 +374,7 @@ const claude: HostConfig = {
   install: { prefixable: true, linkingStrategy: 'real-dir-symlink' },
 };
 
-// hosts/opencode.ts — external host, path rewrites + allowlist
+// hosts/opencode.ts — 外部 host，路径重写 + 白名单
 const opencode: HostConfig = {
   name: 'opencode',
   displayName: 'OpenCode',
@@ -385,55 +385,55 @@ const opencode: HostConfig = {
 };
 ```
 
-Key `HostConfig` fields:
-- `frontmatter.mode`: `'allowlist'` (only keep listed fields) or `'denylist'` (strip listed fields)
-- `pathRewrites`: Literal string replacements for host-specific paths
-- `generation.skipSkills` / `includeSkills`: Skill allowlist/denylist per host
-- `runtimeRoot.globalSymlinks`: Assets to symlink into the host's runtime root
-- `install.linkingStrategy`: How skills are exposed to the host
+关键 `HostConfig` 字段：
+- `frontmatter.mode`：`allowlist`（仅保留列出字段）或 `denylist`（删除列出字段）
+- `pathRewrites`：host 专用路径的字面量字符串替换
+- `generation.skipSkills` / `includeSkills`：每个 host 的 skill 白名单/黑名单
+- `runtimeRoot.globalSymlinks`：要符号链接到 host 运行时根目录的资源
+- `install.linkingStrategy`：skill 如何暴露给 host
 
-Adding a new host: create `hosts/myhost.ts`, import in `hosts/index.ts`, add to `ALL_HOST_CONFIGS`. See `docs/ADDING_A_HOST.md` for the full checklist.
+添加新 host：创建 `hosts/myhost.ts`，在 `hosts/index.ts` 中导入，添加到 `ALL_HOST_CONFIGS`。完整清单见 `docs/ADDING_A_HOST.md`。
 
-## Installation strategies
+## 安装策略
 
-Different hosts require different installation strategies because their skill discovery mechanisms differ.
+不同 host 需要不同安装策略，因为它们的 skill 发现机制不同。
 
-### Claude Code: real-dir-symlink
+### Claude Code：real-dir-symlink
 
-Claude discovers skills by scanning `~/.claude/skills/` for directories containing `SKILL.md`. If we symlinked the entire gstack repo into that directory, Claude would see skills nested under `gstack/qa/` and `gstack/ship/`, auto-prefixing them as `gstack-qa` and `gstack-ship`.
+Claude 通过扫描 `~/.claude/skills/` 下包含 `SKILL.md` 的目录来发现 skill。如果我们将整个 gstack 仓库符号链接到该目录，Claude 会看到嵌套在 `gstack/qa/` 和 `gstack/ship/` 下的 skill，自动给它们加上 `gstack-qa`、`gstack-ship` 前缀。
 
-The solution: create **real directories** (not symlinks) at the top level of `~/.claude/skills/`, with only `SKILL.md` symlinked inside:
+解决方案：在 `~/.claude/skills/` 顶层创建**真实目录**（不是符号链接），内部只有 `SKILL.md` 是符号链接：
 
 ```
 ~/.claude/skills/
-├── qa/              ← real directory
-│   └── SKILL.md     ← symlink → ~/.claude/skills/gstack/qa/SKILL.md
-├── ship/            ← real directory
-│   └── SKILL.md     ← symlink
-└── gstack/          ← symlink to repo root (for runtime assets: bin/, browse/dist/)
+├── qa/              ← 真实目录
+│   └── SKILL.md     ← 符号链接 → ~/.claude/skills/gstack/qa/SKILL.md
+├── ship/            ← 真实目录
+│   └── SKILL.md     ← 符号链接
+└── gstack/          ← 符号链接到仓库根目录（运行时资源：bin/、browse/dist/）
 ```
 
-This ensures Claude sees `/qa` and `/ship` as top-level skills. The `--prefix` flag changes directory names to `gstack-qa/`, `gstack-ship/` if the user runs other skill packs alongside gstack.
+这确保 Claude 将 `/qa` 和 `/ship` 视为顶层 skill。`--prefix` 标志会将目录名改为 `gstack-qa/`、`gstack-ship/`，供同时运行其他 skill 包的用户使用。
 
-Migration helpers handle switching between flat and prefixed names without leaving stale symlinks.
+迁移辅助工具处理扁平名和带前缀名之间的切换，不会留下过期符号链接。
 
-### Codex: symlink-generated
+### Codex：symlink-generated
 
-Codex scans `~/.codex/skills/` recursively. If we exposed the whole repo there, both source `SKILL.md` files (Claude format) and generated Codex skills would be discoverable — causing duplicates.
+Codex 递归扫描 `~/.codex/skills/`。如果我们在那里暴露整个仓库，源码 `SKILL.md`（Claude 格式）和生成的 Codex skill 都会被发现——导致重复。
 
-The solution: create a **minimal runtime root** with only runtime assets, then symlink generated skills from `.agents/skills/`:
+解决方案：创建**最小运行时根目录**，只包含运行时资源，然后从 `.agents/skills/` 符号链接生成的 skill：
 
 ```
 ~/.codex/skills/
-├── gstack/          ← minimal runtime root (bin/, browse/dist/, ETHOS.md)
-└── gstack-qa/       ← symlink → .agents/skills/gstack-qa/
+├── gstack/          ← 最小运行时根（bin/、browse/dist/、ETHOS.md）
+└── gstack-qa/       ← 符号链接 → .agents/skills/gstack-qa/
 ```
 
-The `.agents/skills/gstack/` sidecar contains symlinks to `bin/`, `browse/`, `review/` so skill templates can resolve paths like `$SKILL_ROOT/review/checklist.md` at runtime.
+`.agents/skills/gstack/` sidecar 包含指向 `bin/`、`browse/`、`review/` 的符号链接，以便 skill 模板在运行时解析 `$SKILL_ROOT/review/checklist.md` 等路径。
 
-### Kiro: copy-and-sed
+### Kiro：copy-and-sed
 
-Kiro is similar to Codex but uses `~/.kiro/skills/` paths. Rather than maintaining a separate generation pipeline, setup copies the Codex-generated skills and runs `sed` to rewrite paths:
+Kiro 与 Codex 类似，但使用 `~/.kiro/skills/` 路径。setup 不维护单独的生成管道，而是复制 Codex 生成的 skill，然后运行 `sed` 重写路径：
 
 ```bash
 sed -e 's|~/.codex/skills/gstack|~/.kiro/skills/gstack|g' \
@@ -441,33 +441,33 @@ sed -e 's|~/.codex/skills/gstack|~/.kiro/skills/gstack|g' \
     .agents/skills/gstack-qa/SKILL.md > ~/.kiro/skills/gstack-qa/SKILL.md
 ```
 
-This keeps Kiro support cheap — no separate template variants, just path rewriting.
+这让 Kiro 支持成本很低——没有单独的模板变体，只有路径重写。
 
-## CLI Toolchain
+## CLI 工具链
 
-The `bin/` directory contains ~20 small utilities that `setup` and skills use at runtime. They're designed to be composable shell scripts, not a monolithic CLI.
+`bin/` 目录包含约 20 个小工具，`setup` 和 skill 在运行时调用。它们被设计为可组合的外壳脚本，而非单一庞大的 CLI。
 
-| Tool | Purpose | Called by |
-|------|---------|-----------|
-| `gstack-config` | Key-value config store (`get`/`set`/`list`/`delete`). Persists to `~/.gstack/config.yaml`. Tracks `skill_prefix`, `proactive`, `telemetry`, `team_mode`, `auto_upgrade`. | `setup`, skill preambles, user directly |
-| `gstack-update-check` | Compares local VERSION against GitHub latest. Prints `UPGRADE_AVAILABLE` or `JUST_UPGRADED` if within 24h of upgrade. | Every skill preamble |
-| `gstack-relink` | Self-healing symlink manager. Detects and fixes broken skill symlinks after repo moves or renames. | `setup`, `gstack-upgrade` |
-| `gstack-patch-names` | Rewrites `name:` fields in `SKILL.md` files based on prefix preference (flat vs `gstack-`). | `setup` |
-| `gstack-slug` | Generates a filesystem-safe project slug from repo path. Used for learnings, timelines, eval storage paths. | Skill preambles |
-| `gstack-timeline-log` | Appends structured JSON to `~/.gstack/projects/{slug}/timeline.jsonl`. Tracks skill starts/completions for session recovery. | Skill preambles, completions |
-| `gstack-learnings-log` | Persists operational discoveries (patterns, pitfalls, preferences) to `~/.gstack/projects/{slug}/learnings.jsonl`. | Skill completions |
-| `gstack-learnings-search` | Searches historical learnings at session start. Loads relevant past context into the skill preamble. | Skill preambles |
-| `gstack-review-log` / `gstack-review-read` | Persists review metadata + renders the Review Readiness Dashboard. Used by `/ship`, `/plan-eng-review`, etc. | Review skills |
-| `gstack-settings-hook` | Manages Claude Code `settings.json` hooks (`add`/`remove`/`list`). Used for team mode SessionStart hook. | `setup --team`, `setup --no-team` |
-| `gstack-session-update` | Called by SessionStart hook. Auto-updates gstack if `auto_upgrade` is enabled and version changed. | `settings.json` hook |
-| `gstack-team-init` | Registers the SessionStart hook in a repo's local Claude Code settings. Bootstraps team mode for new repos. | `setup --team` output, user directly |
-| `gstack-platform-detect` | Detects OS, shell, and installed AI agents. Used by `setup --host auto`. | `setup` |
-| `gstack-repo-mode` | Determines repo ownership model (`solo` vs `collaborative`). Affects proactive behavior. | Skill preambles |
-| `gstack-diff-scope` | Generates scoped diff for review skills (excludes generated files, vendor, etc.). | `/review`, `/ship` |
-| `gstack-open-url` | Cross-platform URL opener (macOS `open`, Linux `xdg-open`, Windows `start`). | Skills |
-| `gstack-extension` | Chrome extension helper: injects sidebar, manages content scripts. | Browse commands |
+| 工具 | 用途 | 调用方 |
+|------|------|--------|
+| `gstack-config` | 键值配置存储（`get`/`set`/`list`/`delete`）。持久化到 `~/.gstack/config.yaml`。跟踪 `skill_prefix`、`proactive`、`telemetry`、`team_mode`、`auto_upgrade`。 | `setup`、skill 序言、用户直接 |
+| `gstack-update-check` | 比较本地 VERSION 与 GitHub 最新版。如果升级在 24h 内，打印 `UPGRADE_AVAILABLE` 或 `JUST_UPGRADED`。 | 每个 skill 序言 |
+| `gstack-relink` | 自修复符号链接管理器。检测并修复仓库移动或重命名后的损坏 skill 符号链接。 | `setup`、`gstack-upgrade` |
+| `gstack-patch-names` | 根据前缀偏好（扁平 vs `gstack-`）重写 `SKILL.md` 中的 `name:` 字段。 | `setup` |
+| `gstack-slug` | 从仓库路径生成文件系统安全的项目 slug。用于学习、时间线、评估存储路径。 | Skill 序言 |
+| `gstack-timeline-log` | 将结构化 JSON 追加到 `~/.gstack/projects/{slug}/timeline.jsonl`。跟踪 skill 开始/完成，用于会话恢复。 | Skill 序言、完成时 |
+| `gstack-learnings-log` | 将操作发现（模式、陷阱、偏好）持久化到 `~/.gstack/projects/{slug}/learnings.jsonl`。 | Skill 完成时 |
+| `gstack-learnings-search` | 会话开始时搜索历史学习。将相关过去上下文加载到 skill 序言中。 | Skill 序言 |
+| `gstack-review-log` / `gstack-review-read` | 持久化审查元数据 + 渲染审查准备仪表板。`/ship`、`/plan-eng-review` 等使用。 | 审查 skill |
+| `gstack-settings-hook` | 管理 Claude Code `settings.json` hook（`add`/`remove`/`list`）。用于 team mode 的 SessionStart hook。 | `setup --team`、`setup --no-team` |
+| `gstack-session-update` | SessionStart hook 调用。如果启用 `auto_upgrade` 且版本变化，自动更新 gstack。 | `settings.json` hook |
+| `gstack-team-init` | 在仓库的本地 Claude Code 设置中注册 SessionStart hook。为新仓库引导 team mode。 | `setup --team` 输出、用户直接 |
+| `gstack-platform-detect` | 检测操作系统、shell 和已安装的 AI agent。用于 `setup --host auto`。 | `setup` |
+| `gstack-repo-mode` | 确定仓库所有权模型（`solo` vs `collaborative`）。影响主动行为。 | Skill 序言 |
+| `gstack-diff-scope` | 为审查 skill 生成范围限定的 diff（排除生成文件、vendor 等）。 | `/review`、`/ship` |
+| `gstack-open-url` | 跨平台 URL 打开器（macOS `open`、Linux `xdg-open`、Windows `start`）。 | Skill |
+| `gstack-extension` | Chrome 扩展助手：注入侧边栏、管理内容脚本。 | Browse 命令 |
 
-The design principle: each tool does one thing well. They're composed by bash in setup and by prose in skill templates. No single binary grows into a god CLI.
+设计原则：每个工具做好一件事。它们在 setup 中由 bash 组合，在 skill 模板中由自然语言 prose 组合。没有任何单一二进制膨胀成全能 CLI。
 
 ## Command dispatch
 
