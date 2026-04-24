@@ -239,6 +239,236 @@ Three reasons:
 
 Tier 1 runs on every `bun test`. Tiers 2+3 are gated behind `EVALS=1`. The idea is: catch 95% of issues for free, use LLMs only for judgment calls.
 
+## Setup and Build Pipeline
+
+### Overview
+
+`setup` is the single entry point for building and installing gstack. It handles everything from dependency verification to registering skills with multiple AI agent hosts (Claude, Codex, Kiro, Factory).
+
+```
+./setup [--host claude|codex|kiro|factory|auto] [--prefix|--no-prefix] [--team|--no-team]
+```
+
+The script runs in 10 phases:
+
+| Phase | What | Key files |
+|-------|------|-----------|
+| 1. Dependency check | Verify `bun` is installed | — |
+| 2. Flag parsing | Resolve `--host`, `--prefix`, `--team` | `bin/gstack-config` |
+| 3. Build | Compile browse binary + generate skill docs | `package.json`, `scripts/gen-skill-docs.ts` |
+| 4. External host generation | Generate `.agents/`, `.factory/` skill docs | `scripts/gen-skill-docs.ts --host codex|factory` |
+| 5. Chromium verification | Launch Playwright to confirm browser works | — |
+| 6. Global state | Create `~/.gstack/projects/` | — |
+| 7. Claude install | Link skills into `~/.claude/skills/` | `bin/gstack-patch-names`, `bin/gstack-relink` |
+| 8. External host install | Link skills for Codex/Factory/Kiro | `hosts/*.ts` configs |
+| 9. Version migrations | Run idempotent migration scripts | `gstack-upgrade/migrations/` |
+| 10. Team mode hook | Register/unregister SessionStart hook | `bin/gstack-settings-hook` |
+
+### Smart rebuild detection
+
+Setup avoids unnecessary work by comparing mtimes:
+
+1. If `browse/dist/browse` doesn't exist → build
+2. If any file in `browse/src/` is newer than the binary → build
+3. If `package.json` or `bun.lock` is newer than the binary → build
+4. Otherwise skip the build phase entirely
+
+This means running `./setup` twice in a row takes under a second the second time.
+
+### Build phase details
+
+`bun run build` (normal mode):
+
+```bash
+bun run gen:skill-docs --host all           # Generate SKILL.md for all hosts
+bun build --compile browse/src/cli.ts       # Compile browse binary (~58MB)
+bun build --compile browse/src/find-browse.ts
+bun build --compile bin/gstack-global-discover.ts
+bash browse/scripts/build-node-server.sh    # Node.js server bundle for Windows
+git rev-parse HEAD > browse/dist/.version   # Version marker for auto-restart
+```
+
+`bun run build:node` (internal network mode):
+
+Uses `npm install --legacy-peer-deps` + `bun run build:node` instead of `bun build --compile`. Produces Node.js CLI scripts rather than compiled binaries, because the internal network environment lacks Bun's compiler.
+
+### External host skill generation
+
+Even when the binary is fresh (no build needed), setup always regenerates external host skills:
+
+```bash
+bun run gen:skill-docs --host codex   # → .agents/skills/gstack-*/
+bun run gen:skill-docs --host factory # → .factory/skills/gstack-*/
+```
+
+Generation is fast (<2s) and mtime-based staleness checks are fragile after clone/checkout/upgrade. Always regenerating prevents stale skill docs.
+
+## Host-aware skill generation
+
+### The problem
+
+Different AI agents consume skills in different formats:
+- **Claude Code** reads `SKILL.md` with YAML frontmatter, uses `Skill` tool invocation
+- **Codex** reads `.md` files with OpenAI-compatible `agents/openai.yaml` metadata
+- **Kiro** reads `.md` files but uses different path conventions (`~/.kiro/` not `~/.claude/`)
+- **Factory Droid** has its own frontmatter restrictions
+
+Hand-maintaining a copy per host would guarantee drift.
+
+### The solution
+
+A single `.tmpl` template generates all host variants via declarative config:
+
+```
+skill/SKILL.md.tmpl
+    │
+    ├─ --host claude ──→ skill/SKILL.md              (primary host, minimal transform)
+    ├─ --host codex ───→ .agents/skills/gstack-skill/SKILL.md  (path rewrites, openai.yaml)
+    ├─ --host factory ─→ .factory/skills/gstack-skill/SKILL.md (frontmatter allowlist)
+    └─ --host all ─────→ 以上所有
+```
+
+### Generation pipeline
+
+`scripts/gen-skill-docs.ts` processes each template:
+
+1. **Discovery**: `discoverTemplates()` scans root + one level of subdirs for `SKILL.md.tmpl`
+2. **Frontmatter parsing**: Extracts `name:`, `description:`, `preamble-tier:`, `benefits-from:`
+3. **Placeholder resolution**: Replaces `{{NAME}}` or `{{NAME:arg1:arg2}}` via resolver registry (`scripts/resolvers/index.ts`)
+4. **Voice trigger folding**: Collapses `voice-triggers` YAML into description prose
+5. **Host-specific frontmatter transform**: Strips/keeps fields per host config (allowlist/denylist mode)
+6. **Path rewrites**: `~/.claude/skills/gstack` → `~/.codex/skills/gstack`, etc.
+7. **Safety prose injection**: If hooks are present, inserts advisory text
+8. **Metadata generation**: For Codex, generates `agents/openai.yaml` with display name + description
+9. **Output**: Writes generated file + prepends `<!-- AUTO-GENERATED -->` header
+
+### Placeholder resolver registry
+
+| Placeholder | Source | Generated by |
+|-------------|--------|--------------|
+| `{{PREAMBLE}}` | `scripts/resolvers/preamble.ts` | Update check, session tracking, learnings load, AskUserQuestion format, telemetry prompts |
+| `{{COMMAND_REFERENCE}}` | `browse/src/commands.ts` | Categorized command table with descriptions |
+| `{{SNAPSHOT_FLAGS}}` | `browse/src/snapshot.ts` | Flag reference with examples |
+| `{{BROWSE_SETUP}}` | `scripts/resolvers/browse.ts` | Binary discovery + `$B` setup instructions |
+| `{{BASE_BRANCH_DETECT}}` | `scripts/resolvers/utility.ts` | Dynamic base branch detection for PR-targeting skills |
+| `{{QA_METHODOLOGY}}` | `scripts/resolvers/testing.ts` | Shared QA methodology for `/qa` and `/qa-only` |
+| `{{DESIGN_METHODOLOGY}}` | `scripts/resolvers/design.ts` | Design audit methodology + hard rules |
+| `{{REVIEW_DASHBOARD}}` | `scripts/resolvers/review.ts` | Review Readiness Dashboard for `/ship` pre-flight |
+| `{{TEST_BOOTSTRAP}}` | `scripts/resolvers/testing.ts` | Test framework detection, bootstrap, CI/CD setup |
+| `{{CODEX_PLAN_REVIEW}}` | `scripts/resolvers/review.ts` | Cross-model plan review (Codex or Claude subagent) |
+| `{{LEARNINGS_SEARCH}}` | `scripts/resolvers/learnings.ts` | Search historical learnings at session start |
+| `{{LEARNINGS_LOG}}` | `scripts/resolvers/learnings.ts` | Log operational discoveries at session end |
+
+### Declarative host config system
+
+Each supported host is defined as a typed `HostConfig` in `hosts/*.ts`:
+
+```typescript
+// hosts/claude.ts — primary host, minimal transformation
+const claude: HostConfig = {
+  name: 'claude',
+  displayName: 'Claude Code',
+  globalRoot: '.claude/skills/gstack',
+  frontmatter: { mode: 'denylist', stripFields: ['sensitive'] },
+  pathRewrites: [],
+  install: { prefixable: true, linkingStrategy: 'real-dir-symlink' },
+};
+
+// hosts/opencode.ts — external host, path rewrites + allowlist
+const opencode: HostConfig = {
+  name: 'opencode',
+  displayName: 'OpenCode',
+  globalRoot: '.config/opencode/skills/gstack',
+  frontmatter: { mode: 'allowlist', keepFields: ['name', 'description', 'version'] },
+  pathRewrites: [{ from: '~/.claude/skills/gstack', to: '~/.config/opencode/skills/gstack' }],
+  install: { prefixable: false, linkingStrategy: 'symlink-generated' },
+};
+```
+
+Key `HostConfig` fields:
+- `frontmatter.mode`: `'allowlist'` (only keep listed fields) or `'denylist'` (strip listed fields)
+- `pathRewrites`: Literal string replacements for host-specific paths
+- `generation.skipSkills` / `includeSkills`: Skill allowlist/denylist per host
+- `runtimeRoot.globalSymlinks`: Assets to symlink into the host's runtime root
+- `install.linkingStrategy`: How skills are exposed to the host
+
+Adding a new host: create `hosts/myhost.ts`, import in `hosts/index.ts`, add to `ALL_HOST_CONFIGS`. See `docs/ADDING_A_HOST.md` for the full checklist.
+
+## Installation strategies
+
+Different hosts require different installation strategies because their skill discovery mechanisms differ.
+
+### Claude Code: real-dir-symlink
+
+Claude discovers skills by scanning `~/.claude/skills/` for directories containing `SKILL.md`. If we symlinked the entire gstack repo into that directory, Claude would see skills nested under `gstack/qa/` and `gstack/ship/`, auto-prefixing them as `gstack-qa` and `gstack-ship`.
+
+The solution: create **real directories** (not symlinks) at the top level of `~/.claude/skills/`, with only `SKILL.md` symlinked inside:
+
+```
+~/.claude/skills/
+├── qa/              ← real directory
+│   └── SKILL.md     ← symlink → ~/.claude/skills/gstack/qa/SKILL.md
+├── ship/            ← real directory
+│   └── SKILL.md     ← symlink
+└── gstack/          ← symlink to repo root (for runtime assets: bin/, browse/dist/)
+```
+
+This ensures Claude sees `/qa` and `/ship` as top-level skills. The `--prefix` flag changes directory names to `gstack-qa/`, `gstack-ship/` if the user runs other skill packs alongside gstack.
+
+Migration helpers handle switching between flat and prefixed names without leaving stale symlinks.
+
+### Codex: symlink-generated
+
+Codex scans `~/.codex/skills/` recursively. If we exposed the whole repo there, both source `SKILL.md` files (Claude format) and generated Codex skills would be discoverable — causing duplicates.
+
+The solution: create a **minimal runtime root** with only runtime assets, then symlink generated skills from `.agents/skills/`:
+
+```
+~/.codex/skills/
+├── gstack/          ← minimal runtime root (bin/, browse/dist/, ETHOS.md)
+└── gstack-qa/       ← symlink → .agents/skills/gstack-qa/
+```
+
+The `.agents/skills/gstack/` sidecar contains symlinks to `bin/`, `browse/`, `review/` so skill templates can resolve paths like `$SKILL_ROOT/review/checklist.md` at runtime.
+
+### Kiro: copy-and-sed
+
+Kiro is similar to Codex but uses `~/.kiro/skills/` paths. Rather than maintaining a separate generation pipeline, setup copies the Codex-generated skills and runs `sed` to rewrite paths:
+
+```bash
+sed -e 's|~/.codex/skills/gstack|~/.kiro/skills/gstack|g' \
+    -e 's|~/.claude/skills/gstack|~/.kiro/skills/gstack|g' \
+    .agents/skills/gstack-qa/SKILL.md > ~/.kiro/skills/gstack-qa/SKILL.md
+```
+
+This keeps Kiro support cheap — no separate template variants, just path rewriting.
+
+## CLI Toolchain
+
+The `bin/` directory contains ~20 small utilities that `setup` and skills use at runtime. They're designed to be composable shell scripts, not a monolithic CLI.
+
+| Tool | Purpose | Called by |
+|------|---------|-----------|
+| `gstack-config` | Key-value config store (`get`/`set`/`list`/`delete`). Persists to `~/.gstack/config.yaml`. Tracks `skill_prefix`, `proactive`, `telemetry`, `team_mode`, `auto_upgrade`. | `setup`, skill preambles, user directly |
+| `gstack-update-check` | Compares local VERSION against GitHub latest. Prints `UPGRADE_AVAILABLE` or `JUST_UPGRADED` if within 24h of upgrade. | Every skill preamble |
+| `gstack-relink` | Self-healing symlink manager. Detects and fixes broken skill symlinks after repo moves or renames. | `setup`, `gstack-upgrade` |
+| `gstack-patch-names` | Rewrites `name:` fields in `SKILL.md` files based on prefix preference (flat vs `gstack-`). | `setup` |
+| `gstack-slug` | Generates a filesystem-safe project slug from repo path. Used for learnings, timelines, eval storage paths. | Skill preambles |
+| `gstack-timeline-log` | Appends structured JSON to `~/.gstack/projects/{slug}/timeline.jsonl`. Tracks skill starts/completions for session recovery. | Skill preambles, completions |
+| `gstack-learnings-log` | Persists operational discoveries (patterns, pitfalls, preferences) to `~/.gstack/projects/{slug}/learnings.jsonl`. | Skill completions |
+| `gstack-learnings-search` | Searches historical learnings at session start. Loads relevant past context into the skill preamble. | Skill preambles |
+| `gstack-review-log` / `gstack-review-read` | Persists review metadata + renders the Review Readiness Dashboard. Used by `/ship`, `/plan-eng-review`, etc. | Review skills |
+| `gstack-settings-hook` | Manages Claude Code `settings.json` hooks (`add`/`remove`/`list`). Used for team mode SessionStart hook. | `setup --team`, `setup --no-team` |
+| `gstack-session-update` | Called by SessionStart hook. Auto-updates gstack if `auto_upgrade` is enabled and version changed. | `settings.json` hook |
+| `gstack-team-init` | Registers the SessionStart hook in a repo's local Claude Code settings. Bootstraps team mode for new repos. | `setup --team` output, user directly |
+| `gstack-platform-detect` | Detects OS, shell, and installed AI agents. Used by `setup --host auto`. | `setup` |
+| `gstack-repo-mode` | Determines repo ownership model (`solo` vs `collaborative`). Affects proactive behavior. | Skill preambles |
+| `gstack-diff-scope` | Generates scoped diff for review skills (excludes generated files, vendor, etc.). | `/review`, `/ship` |
+| `gstack-open-url` | Cross-platform URL opener (macOS `open`, Linux `xdg-open`, Windows `start`). | Skills |
+| `gstack-extension` | Chrome extension helper: injects sidebar, manages content scripts. | Browse commands |
+
+The design principle: each tool does one thing well. They're composed by bash in setup and by prose in skill templates. No single binary grows into a god CLI.
+
 ## Command dispatch
 
 Commands are categorized by side effects:
