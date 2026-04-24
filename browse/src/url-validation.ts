@@ -136,3 +136,40 @@ export async function validateNavigationUrl(url: string): Promise<void> {
     );
   }
 }
+
+/**
+ * 将 `localhost` 主机名规范化为 `127.0.0.1`。
+ *
+ * Windows 在启用 IPv6 时，默认将 `localhost` 解析为 IPv6 的 `::1`。
+ * 而大多数本地开发服务器仅绑定 IPv4 的 `127.0.0.1`，这会导致 `goto` 命令
+ * 挂起或报错 `ERR_CONNECTION_REFUSED`。将 `localhost` 替换为 IPv4 环回地址
+ * 可以完全绕过操作系统解析器。
+ *
+ * 仅修改 URL 的 hostname 部分；path、query 和 fragment 保持不变。
+ * 已经是 IPv4 或外部域名的地址直接透传。无效 URL 也直接透传，
+ * 因为验证逻辑由其他函数负责。
+ */
+export function normalizeLocalhostToIPv4(url: string): string {
+  try {
+    const parsed = new URL(url);
+    if (parsed.hostname.toLowerCase() === 'localhost') {
+      parsed.hostname = '127.0.0.1';
+      return parsed.toString();
+    }
+  } catch {
+    // 无效 URL 直接透传
+  }
+  return url;
+}
+
+/**
+ * 准备导航 URL：先规范化 localhost → 127.0.0.1，再执行安全验证。
+ *
+ * 这是所有用户可控导航入口的统一入口。返回值是规范化后的 URL，
+ * 可直接传给 `page.goto()`。
+ */
+export async function prepareNavigationUrl(url: string): Promise<string> {
+  const normalized = normalizeLocalhostToIPv4(url);
+  await validateNavigationUrl(normalized);
+  return normalized;
+}

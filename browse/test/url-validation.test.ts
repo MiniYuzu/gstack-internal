@@ -112,3 +112,70 @@ describe('validateNavigationUrl — restoreState coverage', () => {
     await expect(validateNavigationUrl('http://localhost:3000/app')).resolves.toBeUndefined();
   });
 });
+
+describe('normalizeLocalhostToIPv4', () => {
+  it('将 localhost 替换为 127.0.0.1', () => {
+    const { normalizeLocalhostToIPv4 } = require('../src/url-validation');
+    expect(normalizeLocalhostToIPv4('http://localhost:3000')).toBe('http://127.0.0.1:3000/');
+  });
+
+  it('处理不带端口的 localhost', () => {
+    const { normalizeLocalhostToIPv4 } = require('../src/url-validation');
+    expect(normalizeLocalhostToIPv4('http://localhost/path')).toBe('http://127.0.0.1/path');
+  });
+
+  it('处理 https 协议的 localhost', () => {
+    const { normalizeLocalhostToIPv4 } = require('../src/url-validation');
+    expect(normalizeLocalhostToIPv4('https://localhost:8080')).toBe('https://127.0.0.1:8080/');
+  });
+
+  it('保留 127.0.0.1 不变', () => {
+    const { normalizeLocalhostToIPv4 } = require('../src/url-validation');
+    expect(normalizeLocalhostToIPv4('http://127.0.0.1:3000')).toBe('http://127.0.0.1:3000');
+  });
+
+  it('保留外部域名不变', () => {
+    const { normalizeLocalhostToIPv4 } = require('../src/url-validation');
+    expect(normalizeLocalhostToIPv4('https://example.com')).toBe('https://example.com');
+  });
+
+  it('处理大写的 LOCALHOST', () => {
+    const { normalizeLocalhostToIPv4 } = require('../src/url-validation');
+    expect(normalizeLocalhostToIPv4('http://LOCALHOST:3000')).toBe('http://127.0.0.1:3000/');
+  });
+
+  it('保留 IPv6 环回地址不变', () => {
+    const { normalizeLocalhostToIPv4 } = require('../src/url-validation');
+    expect(normalizeLocalhostToIPv4('http://[::1]:3000')).toBe('http://[::1]:3000');
+  });
+
+  it('不替换路径或查询参数中的 localhost', () => {
+    const { normalizeLocalhostToIPv4 } = require('../src/url-validation');
+    expect(normalizeLocalhostToIPv4('http://example.com/?redirect=localhost')).toBe(
+      'http://example.com/?redirect=localhost'
+    );
+  });
+
+  it('无效 URL 直接透传', () => {
+    const { normalizeLocalhostToIPv4 } = require('../src/url-validation');
+    expect(normalizeLocalhostToIPv4('not-a-url')).toBe('not-a-url');
+  });
+});
+
+describe('prepareNavigationUrl', () => {
+  it('返回规范化后的 URL 并通过验证', async () => {
+    const { prepareNavigationUrl } = require('../src/url-validation');
+    const result = await prepareNavigationUrl('http://localhost:3000');
+    expect(result).toBe('http://127.0.0.1:3000/');
+  });
+
+  it('对危险 URL 仍然抛出错误', async () => {
+    const { prepareNavigationUrl } = require('../src/url-validation');
+    await expect(prepareNavigationUrl('http://169.254.169.254/')).rejects.toThrow(/cloud metadata/i);
+  });
+
+  it('对无效 URL 仍然抛出错误', async () => {
+    const { prepareNavigationUrl } = require('../src/url-validation');
+    await expect(prepareNavigationUrl('not-a-url')).rejects.toThrow(/Invalid URL/i);
+  });
+});
