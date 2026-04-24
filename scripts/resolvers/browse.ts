@@ -105,14 +105,17 @@ export function generateBrowseSetup(ctx: TemplateContext): string {
 \`\`\`bash
 _ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
 B=""
-# Try .js wrapper first (internal network compatible), then binary
-[ -n "$_ROOT" ] && [ -f "$_ROOT/${ctx.paths.localSkillRoot}/browse/dist/browse.js" ] && B="bun run $_ROOT/${ctx.paths.localSkillRoot}/browse/dist/browse.js"
-[ -n "$_ROOT" ] && [ -z "$B" ] && [ -x "$_ROOT/${ctx.paths.localSkillRoot}/browse/dist/browse" ] && B="$_ROOT/${ctx.paths.localSkillRoot}/browse/dist/browse"
-[ -z "$B" ] && B=${ctx.paths.browseDir}/browse
-if [ -x "$B" ]; then
-  echo "READY: $B"
+# 1. 优先检查当前 Git 仓库下的构建产物
+if [ -n "$_ROOT" ] && [ -f "$_ROOT/.claude/skills/gstack/browse/dist/browse.js" ]; then
+    B="bun run $_ROOT/.claude/skills/gstack/browse/dist/browse.js"
+    echo "READY: $B"
+# 2. 兜底检查全局安装目录下的产物
+elif [ -f ~/.claude/skills/gstack/browse/dist/browse.js ]; then
+    B="bun run ~/.claude/skills/gstack/browse/dist/browse.js"
+    echo "READY: $B"
+# 3. 只有物理文件不存在时，才提示需要 SETUP
 else
-  echo "NEEDS_SETUP"
+    echo "NEEDS_SETUP"
 fi
 \`\`\`
 

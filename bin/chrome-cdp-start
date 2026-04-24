@@ -1,74 +1,73 @@
 #!/bin/bash
-# Launch Chrome with CDP (remote debugging) enabled for gstack.
+# Launch Chrome with CDP (remote debugging) enabled for gstack on Windows Git Bash.
 # Usage: chrome-cdp-start [port]
-#
-# This script creates an isolated Chrome profile for gstack testing,
-# preventing interference with the user's daily Chrome instance.
 
 PORT="${1:-9211}"
 GSTACK_DATA_DIR="${GSTACK_DATA_DIR:-$HOME/.gstack/cdp-chrome-profile}"
 
-# Detect Chrome path based on OS
-if [[ "$OSTYPE" == "darwin"* ]]; then
-    # macOS
-    CHROME_PATHS=(
-        "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
-        "/Applications/Chromium.app/Contents/MacOS/Chromium"
-        "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge"
-        "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser"
-    )
+# 1. 路径转换：把隔离数据目录转换为 Windows 原生格式
+if command -v cygpath >/dev/null 2>&1; then
+    WIN_DATA_DIR=$(cygpath -w "$GSTACK_DATA_DIR")
 else
-    # Linux
-    CHROME_PATHS=(
-        "/usr/bin/google-chrome"
-        "/usr/bin/google-chrome-stable"
-        "/usr/bin/chromium"
-        "/usr/bin/chromium-browser"
-        "/usr/bin/microsoft-edge"
-        "/usr/bin/brave"
-    )
+    WIN_DATA_DIR="$GSTACK_DATA_DIR"
 fi
 
-# Find first available Chrome
+# 2. 核心探测：寻找可用的浏览器路径
 CHROME=""
-for path in "${CHROME_PATHS[@]}"; do
-    if [ -x "$path" ]; then
-        CHROME="$path"
-        break
+
+# 优先探测 A：读取我们配置好的环境变量 GSTACK_CHROMIUM_PATH
+if [ -n "$GSTACK_CHROMIUM_PATH" ]; then
+    if command -v cygpath >/dev/null 2>&1; then
+        ENV_CHROME=$(cygpath -u "$GSTACK_CHROMIUM_PATH")
+    else
+        ENV_CHROME="$GSTACK_CHROMIUM_PATH"
     fi
-done
+    if [ -x "$ENV_CHROME" ]; then
+        CHROME="$ENV_CHROME"
+    fi
+fi
+
+# 兜底探测 B：如果环境变量失效，遍历常见路径
+if [ -z "$CHROME" ]; then
+    CHROME_PATHS=(
+        "/c/Program Files/Google/Chrome/Application/chrome.exe"
+        "/c/Program Files (x86)/Google/Chrome/Application/chrome.exe"
+        "$LOCALAPPDATA/Google/Chrome/Application/chrome.exe"
+        "/c/Program Files/Microsoft/Edge/Application/msedge.exe"
+        "/c/Program Files (x86)/Microsoft/Edge/Application/msedge.exe"
+    )
+    for path in "${CHROME_PATHS[@]}"; do
+        if [ -x "$path" ]; then
+            CHROME="$path"
+            break
+        fi
+    done
+fi
 
 if [ -z "$CHROME" ]; then
-    echo "ERROR: Chrome not found. Please install Google Chrome or Chromium." >&2
-    echo "Searched paths:" >&2
-    printf '  %s\n' "${CHROME_PATHS[@]}" >&2
+    echo "ERROR: Chrome or Edge not found. Please check GSTACK_CHROMIUM_PATH." >&2
     exit 1
 fi
 
-echo "Found Chrome: $CHROME"
-
-# Create isolated profile directory
+# 3. 隔离环境初始化
 mkdir -p "$GSTACK_DATA_DIR"
 
-# Check if Chrome is already running on CDP port
+# 4. 端口占用检查
 if curl -s "http://localhost:$PORT/json/version" >/dev/null 2>&1; then
-    echo "Chrome is already running with CDP on port $PORT"
-    echo "You can now run: $B connect-cdp"
+    echo "Browser is already running with CDP on port $PORT"
     exit 0
 fi
 
-echo "Launching Chrome with CDP on port $PORT..."
-echo "Data directory: $GSTACK_DATA_DIR"
-echo ""
-echo "NOTE: This Chrome instance is isolated from your daily browser."
-echo "      Login to websites here, then run: $B connect-cdp"
+echo "Launching Browser with CDP on port $PORT..."
+echo "Using executable: $CHROME"
+echo "Isolated Data Dir: $WIN_DATA_DIR"
 echo ""
 
-# Launch Chrome with CDP
+# 5. 以后台静默模式启动浏览器
 "$CHROME" \
     --remote-debugging-port="$PORT" \
     --remote-allow-origins="http://localhost:$PORT" \
-    --user-data-dir="$GSTACK_DATA_DIR" \
+    --user-data-dir="$WIN_DATA_DIR" \
     --no-first-run \
     --no-default-browser-check \
     --enable-automation \
@@ -79,19 +78,17 @@ echo ""
 CHROME_PID=$!
 disown $CHROME_PID 2>/dev/null || true
 
-# Wait for CDP to be available
-echo "Waiting for CDP to be ready..."
+# 6. 健康检查：轮询等待 CDP 服务就绪
+echo -n "Waiting for CDP to be ready"
 for i in $(seq 1 30); do
     if curl -s "http://localhost:$PORT/json/version" >/dev/null 2>&1; then
-        echo ""
-        echo "✓ CDP ready on port $PORT"
-        echo "✓ Run: $B connect-cdp"
+        echo -e "\n✓ CDP ready on port $PORT"
+        echo "✓ You can now run your Agent commands."
         exit 0
     fi
     echo -n "."
     sleep 1
 done
 
-echo ""
-echo "ERROR: CDP not available after 30s. Chrome may have failed to start." >&2
+echo -e "\nERROR: CDP not available after 30s." >&2
 exit 1

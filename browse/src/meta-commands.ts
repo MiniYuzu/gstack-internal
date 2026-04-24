@@ -185,6 +185,7 @@ export async function handleMetaCommand(
         if (buffer.length > 10 * 1024 * 1024) {
           throw new Error('Screenshot too large for --base64 (>10MB). Use disk path instead.');
         }
+        return `[System: 截图已完成。为了节省 Token，已禁止返回 Base64 图像数据。请依靠 DOM 树和控制台进行断言。]`；
         return `data:image/png;base64,${buffer.toString('base64')}`;
       }
 

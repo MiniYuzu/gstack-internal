@@ -17,8 +17,15 @@ if "%~1"=="" (
 
 set "GSTACK_DATA_DIR=%USERPROFILE%\.gstack\cdp-chrome-profile"
 
-REM Detect Chrome path
+REM Detect Chrome path: env var > default paths
 set "CHROME="
+if defined GSTACK_CHROMIUM_PATH (
+    if exist "%GSTACK_CHROMIUM_PATH%" (
+        set "CHROME=%GSTACK_CHROMIUM_PATH%"
+        goto :found_chrome
+    )
+)
+
 for %%p in (
     "C:\Program Files\Google\Chrome\Application\chrome.exe"
     "C:\Program Files (x86)\Google\Chrome\Application\chrome.exe"
