@@ -9,7 +9,7 @@ import type { TabSession } from './tab-session';
 import type { BrowserManager } from './browser-manager';
 import { findInstalledBrowsers, importCookies, listSupportedBrowserNames } from './cookie-import-browser';
 import { generatePickerCode } from './cookie-picker-routes';
-import { validateNavigationUrl } from './url-validation';
+import { prepareNavigationUrl } from './url-validation';
 import { validateOutputPath } from './path-security';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -139,9 +139,9 @@ export async function handleWriteCommand(
   switch (command) {
     case 'goto': {
       if (inFrame) throw new Error('Cannot use goto inside a frame. Run \'frame main\' first.');
-      const url = args[0];
-      if (!url) throw new Error('Usage: browse goto <url>');
-      await validateNavigationUrl(url);
+      const rawUrl = args[0];
+      if (!rawUrl) throw new Error('Usage: browse goto <url>');
+      const url = await prepareNavigationUrl(rawUrl);
       const response = await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 15000 });
       const status = response?.status() || 'unknown';
       return `Navigated to ${url} (${status})`;
