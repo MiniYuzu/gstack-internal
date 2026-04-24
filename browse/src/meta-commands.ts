@@ -6,7 +6,7 @@ import type { BrowserManager } from './browser-manager';
 import { handleSnapshot } from './snapshot';
 import { getCleanText } from './read-commands';
 import { READ_COMMANDS, WRITE_COMMANDS, META_COMMANDS, PAGE_CONTENT_COMMANDS, wrapUntrustedContent } from './commands';
-import { validateNavigationUrl } from './url-validation';
+import { prepareNavigationUrl } from './url-validation';
 import { checkScope, type TokenInfo } from './token-registry';
 import { validateOutputPath, escapeRegExp } from './path-security';
 // Re-export for backward compatibility (tests import from meta-commands)
@@ -185,7 +185,7 @@ export async function handleMetaCommand(
         if (buffer.length > 10 * 1024 * 1024) {
           throw new Error('Screenshot too large for --base64 (>10MB). Use disk path instead.');
         }
-        return `[System: 截图已完成。为了节省 Token，已禁止返回 Base64 图像数据。请依靠 DOM 树和控制台进行断言。]`；
+        return `[System: 截图已完成。为了节省 Token，已禁止返回 Base64 图像数据。请依靠 DOM 树和控制台进行断言。]`;
         return `data:image/png;base64,${buffer.toString('base64')}`;
       }
 
@@ -352,12 +352,12 @@ export async function handleMetaCommand(
       if (!url1 || !url2) throw new Error('Usage: browse diff <url1> <url2>');
 
       const page = bm.getPage();
-      await validateNavigationUrl(url1);
-      await page.goto(url1, { waitUntil: 'domcontentloaded', timeout: 15000 });
+      const normalizedUrl1 = await prepareNavigationUrl(url1);
+      await page.goto(normalizedUrl1, { waitUntil: 'domcontentloaded', timeout: 15000 });
       const text1 = await getCleanText(page);
 
-      await validateNavigationUrl(url2);
-      await page.goto(url2, { waitUntil: 'domcontentloaded', timeout: 15000 });
+      const normalizedUrl2 = await prepareNavigationUrl(url2);
+      await page.goto(normalizedUrl2, { waitUntil: 'domcontentloaded', timeout: 15000 });
       const text2 = await getCleanText(page);
 
       const changes = Diff.diffLines(text1, text2);
