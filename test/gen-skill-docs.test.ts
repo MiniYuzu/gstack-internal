@@ -1088,7 +1088,8 @@ describe('DESIGN_SKETCH resolver', () => {
 
 describe('CODEX_SECOND_OPINION resolver', () => {
   const content = fs.readFileSync(path.join(ROOT, 'office-hours', 'SKILL.md'), 'utf-8');
-  const codexContent = fs.readFileSync(path.join(ROOT, '.agents', 'skills', 'gstack-office-hours', 'SKILL.md'), 'utf-8');
+  const codexPath = path.join(ROOT, '.agents', 'skills', 'gstack-office-hours', 'SKILL.md');
+  const codexContent = fs.existsSync(codexPath) ? fs.readFileSync(codexPath, 'utf-8') : '';
 
   test('Phase 3.5 section appears in office-hours SKILL.md', () => {
     expect(content).toContain('Phase 3.5: Cross-Model Second Opinion');
@@ -1124,6 +1125,7 @@ describe('CODEX_SECOND_OPINION resolver', () => {
   });
 
   test('Codex host variant does NOT contain the Phase 3.5 resolver output', () => {
+    if (!codexContent) return; // skip if .agents/ not generated
     // The resolver returns '' for codex host, so the interactive section is stripped.
     // Static template references to "Phase 3.5" in prose/conditionals are fine.
     // Other resolvers (design review lite) may contain CODEX_NOT_AVAILABLE, so we
@@ -2019,9 +2021,8 @@ describe('--host all', () => {
 describe('setup script validation', () => {
   const setupContent = fs.readFileSync(path.join(ROOT, 'setup'), 'utf-8');
 
-  test('setup has separate link functions for Claude and Codex', () => {
+  test('setup has link function for Claude', () => {
     expect(setupContent).toContain('link_claude_skill_dirs');
-    expect(setupContent).toContain('link_codex_skill_dirs');
     // Old unified function must not exist
     expect(setupContent).not.toMatch(/^link_skill_dirs\(\)/m);
   });
@@ -2030,52 +2031,9 @@ describe('setup script validation', () => {
     // The Claude install section (section 4) should use the Claude function
     const claudeSection = setupContent.slice(
       setupContent.indexOf('# 4. Install for Claude'),
-      setupContent.indexOf('# 5. Install for Codex')
+      setupContent.indexOf('# 5. Run pending version migrations')
     );
     expect(claudeSection).toContain('link_claude_skill_dirs');
-    expect(claudeSection).not.toContain('link_codex_skill_dirs');
-  });
-
-  test('Codex install uses link_codex_skill_dirs', () => {
-    // The Codex install section (section 5) should use the Codex function
-    const codexSection = setupContent.slice(
-      setupContent.indexOf('# 5. Install for Codex'),
-      setupContent.indexOf('# 6. Create')
-    );
-    expect(codexSection).toContain('create_codex_runtime_root');
-    expect(codexSection).toContain('link_codex_skill_dirs');
-    expect(codexSection).not.toContain('link_claude_skill_dirs');
-    expect(codexSection).not.toContain('ln -snf "$GSTACK_DIR" "$CODEX_GSTACK"');
-  });
-
-  test('Codex install prefers repo-local .agents/skills when setup runs from there', () => {
-    expect(setupContent).toContain('SKILLS_PARENT_BASENAME');
-    expect(setupContent).toContain('CODEX_REPO_LOCAL=0');
-    expect(setupContent).toContain('[ "$SKILLS_PARENT_BASENAME" = ".agents" ]');
-    expect(setupContent).toContain('CODEX_REPO_LOCAL=1');
-    expect(setupContent).toContain('CODEX_SKILLS="$INSTALL_SKILLS_DIR"');
-  });
-
-  test('setup separates install path from source path for symlinked repo-local installs', () => {
-    expect(setupContent).toContain('INSTALL_GSTACK_DIR=');
-    expect(setupContent).toContain('SOURCE_GSTACK_DIR=');
-    expect(setupContent).toContain('INSTALL_SKILLS_DIR=');
-    expect(setupContent).toContain('CODEX_GSTACK="$INSTALL_GSTACK_DIR"');
-    expect(setupContent).toContain('link_codex_skill_dirs "$SOURCE_GSTACK_DIR" "$CODEX_SKILLS"');
-  });
-
-  test('Codex installs always create sidecar runtime assets for the real skill target', () => {
-    expect(setupContent).toContain('if [ "$INSTALL_CODEX" -eq 1 ]; then');
-    expect(setupContent).toContain('create_agents_sidecar "$SOURCE_GSTACK_DIR"');
-  });
-
-  test('link_codex_skill_dirs reads from .agents/skills/', () => {
-    // The Codex link function must reference .agents/skills for generated Codex skills
-    const fnStart = setupContent.indexOf('link_codex_skill_dirs()');
-    const fnEnd = setupContent.indexOf('}', setupContent.indexOf('linked[@]}', fnStart));
-    const fnBody = setupContent.slice(fnStart, fnEnd);
-    expect(fnBody).toContain('.agents/skills');
-    expect(fnBody).toContain('gstack*');
   });
 
   test('link_claude_skill_dirs creates real directories with absolute SKILL.md symlinks', () => {
@@ -2117,73 +2075,13 @@ describe('setup script validation', () => {
     expect(fnBody).toContain('rm -f "$target"');
   });
 
-  test('setup supports --host auto|claude|codex|kiro', () => {
+  test('setup supports --host claude|auto', () => {
     expect(setupContent).toContain('--host');
-    expect(setupContent).toContain('claude|codex|kiro|factory|auto');
+    expect(setupContent).toContain('claude|auto');
   });
 
-  test('auto mode detects claude, codex, and kiro binaries', () => {
+  test('auto mode detects claude binary', () => {
     expect(setupContent).toContain('command -v claude');
-    expect(setupContent).toContain('command -v codex');
-    expect(setupContent).toContain('command -v kiro-cli');
-  });
-
-  // T1: Sidecar skip guard — prevents .agents/skills/gstack from being linked as a skill
-  test('link_codex_skill_dirs skips the gstack sidecar directory', () => {
-    const fnStart = setupContent.indexOf('link_codex_skill_dirs()');
-    const fnEnd = setupContent.indexOf('}', setupContent.indexOf('done', fnStart));
-    const fnBody = setupContent.slice(fnStart, fnEnd);
-    expect(fnBody).toContain('[ "$skill_name" = "gstack" ] && continue');
-  });
-
-  // T2: Dynamic $GSTACK_ROOT paths in generated Codex preambles
-  test('generated Codex preambles use dynamic GSTACK_ROOT paths', () => {
-    const codexSkillDir = path.join(ROOT, '.agents', 'skills', 'gstack-ship');
-    if (!fs.existsSync(codexSkillDir)) return; // skip if .agents/ not generated
-    const content = fs.readFileSync(path.join(codexSkillDir, 'SKILL.md'), 'utf-8');
-    expect(content).toContain('GSTACK_ROOT=');
-    expect(content).toContain('$GSTACK_BIN/');
-  });
-
-  // T3: Kiro host support in setup script
-  test('setup supports --host kiro with install section and sed rewrites', () => {
-    expect(setupContent).toContain('INSTALL_KIRO=');
-    expect(setupContent).toContain('kiro-cli');
-    expect(setupContent).toContain('KIRO_SKILLS=');
-    expect(setupContent).toContain('~/.kiro/skills/gstack');
-  });
-
-  test('create_agents_sidecar links runtime assets', () => {
-    // Sidecar must link bin, browse, review, qa
-    const fnStart = setupContent.indexOf('create_agents_sidecar()');
-    const fnEnd = setupContent.indexOf('}', setupContent.indexOf('done', fnStart));
-    const fnBody = setupContent.slice(fnStart, fnEnd);
-    expect(fnBody).toContain('bin');
-    expect(fnBody).toContain('browse');
-    expect(fnBody).toContain('review');
-    expect(fnBody).toContain('qa');
-  });
-
-  test('create_codex_runtime_root exposes only runtime assets', () => {
-    const fnStart = setupContent.indexOf('create_codex_runtime_root()');
-    const fnEnd = setupContent.indexOf('}', setupContent.indexOf('done', setupContent.indexOf('review/', fnStart)));
-    const fnBody = setupContent.slice(fnStart, fnEnd);
-    expect(fnBody).toContain('gstack/SKILL.md');
-    expect(fnBody).toContain('browse/dist');
-    expect(fnBody).toContain('browse/bin');
-    expect(fnBody).toContain('gstack-upgrade/SKILL.md');
-    // Review runtime assets (individual files, not the whole dir)
-    expect(fnBody).toContain('checklist.md');
-    expect(fnBody).toContain('design-checklist.md');
-    expect(fnBody).toContain('greptile-triage.md');
-    expect(fnBody).toContain('TODOS-format.md');
-    expect(fnBody).not.toContain('ln -snf "$gstack_dir" "$codex_gstack"');
-  });
-
-  test('direct Codex installs are migrated out of ~/.codex/skills/gstack', () => {
-    expect(setupContent).toContain('migrate_direct_codex_install');
-    expect(setupContent).toContain('$HOME/.gstack/repos/gstack');
-    expect(setupContent).toContain('avoid duplicate skill discovery');
   });
 
   // --- Symlink prefix tests (PR #503) ---
