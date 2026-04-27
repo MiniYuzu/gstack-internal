@@ -420,7 +420,7 @@ If the launch script fails, start Chrome manually:
 ```batch
 "C:\Program Files\Google\Chrome\Application\chrome.exe" ^
   --remote-debugging-port=9211 ^
-  --remote-allow-origins="http://localhost:9211" ^
+  --remote-allow-origins="http://127.0.0.1:9211" ^
   --user-data-dir="%USERPROFILE%\.gstack\cdp-chrome-profile"
 ```
 (Or use the provided chrome-cdp-start.txt script - rename to .bat before running)
@@ -429,7 +429,7 @@ If the launch script fails, start Chrome manually:
 ```bash
 /Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome \
   --remote-debugging-port=9211 \
-  --remote-allow-origins="http://localhost:9211" \
+  --remote-allow-origins="http://127.0.0.1:9211" \
   --user-data-dir="$HOME/.gstack/cdp-chrome-profile"
 ```
 
@@ -462,7 +462,7 @@ $B status 2>/dev/null | grep -q "Mode: cdp" && echo "CDP_MODE=true" || echo "CDP
 If `CDP_MODE=true`: tell the user "Already connected via CDP. Your browser session with all cookies is active." and stop. No cookie import needed.
 
 If the user is on **Windows** or requests CDP mode:
-1. Check if CDP Chrome is available: `curl -s http://localhost:9211/json/version`
+1. Check if CDP Chrome is available: `curl -s http://127.0.0.1:9211/json/version`
 2. If available: guide them to run `$B connect-cdp`
 3. If not available: guide them to run `chrome-cdp-start` first
 

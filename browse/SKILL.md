@@ -542,7 +542,7 @@ This allows reusing your logged-in browser sessions without cookie import.
    ```bash
    $B connect-cdp
    # Or with custom endpoint:
-   $B connect-cdp http://localhost:9222
+   $B connect-cdp http://127.0.0.1:9222
    ```
 
 4. **Verify connection:**
@@ -550,7 +550,7 @@ This allows reusing your logged-in browser sessions without cookie import.
    $B status
    # Mode: cdp
    # Connected: yes
-   # CDP Endpoint: http://localhost:9211
+   # CDP Endpoint: http://127.0.0.1:9211
    ```
 
 ### Differences from Normal Mode
