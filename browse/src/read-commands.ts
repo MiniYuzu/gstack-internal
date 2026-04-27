@@ -6,6 +6,7 @@
  */
 
 import type { TabSession } from './tab-session';
+import type { BrowserManager } from './browser-manager';
 import { consoleBuffer, networkBuffer, dialogBuffer } from './buffers';
 import type { Page, Frame } from 'playwright-core';
 import * as fs from 'fs';
@@ -33,6 +34,38 @@ function needsBlockWrapper(code: string): boolean {
   if (/\b(const|let|var|function|class|return|throw|if|for|while|switch|try)\b/.test(trimmed)) return true;
   if (trimmed.includes(';')) return true;
   return false;
+}
+
+/**
+ * When cookies have been imported for specific domains, block JS execution
+ * on pages whose origin doesn't match any imported cookie domain.
+ * Prevents cross-origin cookie exfiltration via `js document.cookie` or
+ * similar when the agent navigates to an untrusted page.
+ */
+function assertJsOriginAllowed(bm: BrowserManager, pageUrl: string): void {
+  if (!bm.hasCookieImports()) return;
+
+  let hostname: string;
+  try {
+    hostname = new URL(pageUrl).hostname;
+  } catch {
+    return; // about:blank, data: URIs — allow (no cookies at risk)
+  }
+
+  const importedDomains = bm.getCookieImportedDomains();
+  const allowed = [...importedDomains].some(domain => {
+    // Exact match or subdomain match (e.g., ".github.com" matches "api.github.com")
+    const normalized = domain.startsWith('.') ? domain : '.' + domain;
+    return hostname === domain.replace(/^\./, '') || hostname.endsWith(normalized);
+  });
+
+  if (!allowed) {
+    throw new Error(
+      `JS execution blocked: current page (${hostname}) does not match any cookie-imported domain. ` +
+      `Imported cookies for: ${[...importedDomains].join(', ')}. ` +
+      `This prevents cross-origin cookie exfiltration. Navigate to an imported domain or run without imported cookies.`
+    );
+  }
 }
 
 /** Wrap code for page.evaluate(), using async IIFE with block or expression body as needed. */
@@ -65,7 +98,8 @@ export async function getCleanText(page: Page | Frame): Promise<string> {
 export async function handleReadCommand(
   command: string,
   args: string[],
-  session: TabSession
+  session: TabSession,
+  bm?: BrowserManager,
 ): Promise<string> {
   const page = session.getPage();
   // Frame-aware target for content extraction
@@ -116,7 +150,10 @@ export async function handleReadCommand(
               id: input.id || undefined,
               placeholder: input.placeholder || undefined,
               required: input.required || undefined,
-              value: input.type === 'password' ? '[redacted]' : (input.value || undefined),
+              value: input.type === 'password'
+                || (input.name && SENSITIVE_COOKIE_NAME.test(input.name))
+                || (input.id && SENSITIVE_COOKIE_NAME.test(input.id))
+                ? '[redacted]' : (input.value || undefined),
               options: el.tagName === 'SELECT'
                 ? [...(el as HTMLSelectElement).options].map(o => ({ value: o.value, text: o.text }))
                 : undefined,
@@ -142,6 +179,7 @@ export async function handleReadCommand(
     case 'js': {
       const expr = args[0];
       if (!expr) throw new Error('Usage: browse js <expression>');
+      if (bm) assertJsOriginAllowed(bm, page.url());
       const wrapped = wrapForEvaluate(expr);
       const result = await target.evaluate(wrapped);
       return typeof result === 'object' ? JSON.stringify(result, null, 2) : String(result ?? '');
@@ -151,6 +189,7 @@ export async function handleReadCommand(
       const filePath = args[0];
       if (!filePath) throw new Error('Usage: browse eval <js-file>');
       validateReadPath(filePath);
+      if (bm) assertJsOriginAllowed(bm, page.url());
       if (!fs.existsSync(filePath)) throw new Error(`File not found: ${filePath}`);
       const code = fs.readFileSync(filePath, 'utf-8');
       const wrapped = wrapForEvaluate(code);
