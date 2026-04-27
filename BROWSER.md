@@ -229,13 +229,7 @@ The port is auto-configured. You're done.
 
 #### Manual install (for your regular Chrome)
 
-If you want the extension in your everyday Chrome (not the Playwright-controlled one), run:
-
-```bash
-bin/gstack-extension    # opens chrome://extensions, copies path to clipboard
-```
-
-Or do it manually:
+If you want the extension in your everyday Chrome (not the Playwright-controlled one), do it manually:
 
 1. **Go to `chrome://extensions`** in Chrome's address bar
 2. **Toggle "Developer mode" ON** (top-right corner)

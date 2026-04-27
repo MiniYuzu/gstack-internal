@@ -287,6 +287,5 @@ sed -e 's|~/.codex/skills/gstack|~/.kiro/skills/gstack|g' \
 | `gstack-repo-mode` | 确定仓库所有权模型（`solo` vs `collaborative`）。影响主动行为。 | Skill 序言 |
 | `gstack-diff-scope` | 为审查 skill 生成范围限定的 diff（排除生成文件、vendor 等）。 | `/review`、`/ship` |
 | `gstack-open-url` | 跨平台 URL 打开器（macOS `open`、Linux `xdg-open`、Windows `start`）。 | Skill |
-| `gstack-extension` | Chrome 扩展助手：注入侧边栏、管理内容脚本。 | Browse 命令 |
 
 设计原则：每个工具做好一件事。它们在 setup 中由 bash 组合，在 skill 模板中由自然语言 prose 组合。没有任何单一二进制膨胀成全能 CLI。
