@@ -415,13 +415,13 @@ export async function handleMetaCommand(
     }
 
     case 'connect-cdp': {
-      const wsEndpoint = args[0] || 'http://localhost:9211';
+      const wsEndpoint = args[0] || 'http://127.0.0.1:9211';
 
       // Validate URL format
       try {
         new URL(wsEndpoint);
       } catch {
-        throw new Error(`Invalid CDP endpoint: ${wsEndpoint}. Expected format: http://localhost:9211`);
+        throw new Error(`Invalid CDP endpoint: ${wsEndpoint}. Expected format: http://127.0.0.1:9211`);
       }
 
       // Check if already connected in CDP mode

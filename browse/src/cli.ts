@@ -658,17 +658,17 @@ async function handlePairAgent(state: ServerState, args: string[]): Promise<void
         } else {
           console.warn(`[browse] Tunnel failed: ${tunnelData.error || 'unknown error'}`);
           if (tunnelData.hint) console.warn(`[browse] ${tunnelData.hint}`);
-          console.warn('[browse] Using localhost (same-machine only).\n');
+          console.warn('[browse] Using 127.0.0.1 (same-machine only).\n');
           serverUrl = pairData.server_url;
         }
       } catch (err: any) {
         console.warn(`[browse] Tunnel failed: ${err.message}`);
-        console.warn('[browse] Using localhost (same-machine only).\n');
+        console.warn('[browse] Using 127.0.0.1 (same-machine only).\n');
         serverUrl = pairData.server_url;
       }
     } else {
       console.warn('[browse] No tunnel active and ngrok is not installed/configured.');
-      console.warn('[browse] Instructions will use localhost (same-machine only).');
+      console.warn('[browse] Instructions will use 127.0.0.1 (same-machine only).');
       console.warn('[browse] For remote agents: install ngrok (https://ngrok.com) and run `ngrok config add-authtoken <TOKEN>`\n');
       serverUrl = pairData.server_url;
     }
