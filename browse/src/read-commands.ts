@@ -139,7 +139,11 @@ export async function handleReadCommand(
     }
 
     case 'forms': {
-      const forms = await target.evaluate(() => {
+      // Pass the regex pattern as a string because Playwright's evaluate serialization
+      // does not reliably capture closure variables across all environments (Bun, Node).
+      const SENSITIVE_PATTERN = SENSITIVE_COOKIE_NAME.source;
+      const forms = await target.evaluate((pattern) => {
+        const re = new RegExp(pattern, 'i');
         return [...document.querySelectorAll('form')].map((form, i) => {
           const fields = [...form.querySelectorAll('input, select, textarea')].map(el => {
             const input = el as HTMLInputElement;
@@ -151,8 +155,8 @@ export async function handleReadCommand(
               placeholder: input.placeholder || undefined,
               required: input.required || undefined,
               value: input.type === 'password'
-                || (input.name && SENSITIVE_COOKIE_NAME.test(input.name))
-                || (input.id && SENSITIVE_COOKIE_NAME.test(input.id))
+                || (input.name && re.test(input.name))
+                || (input.id && re.test(input.id))
                 ? '[redacted]' : (input.value || undefined),
               options: el.tagName === 'SELECT'
                 ? [...(el as HTMLSelectElement).options].map(o => ({ value: o.value, text: o.text }))
@@ -167,7 +171,7 @@ export async function handleReadCommand(
             fields,
           };
         });
-      });
+      }, SENSITIVE_PATTERN);
       return JSON.stringify(forms, null, 2);
     }
 
