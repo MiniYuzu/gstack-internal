@@ -114,7 +114,7 @@ if [ "$MODE" = "required" ]; then
 
   # Create enforcement hook script
   mkdir -p "$HOOKS_DIR"
-  cat > "$HOOKS_DIR/check-gstack.sh" << 'HOOK_EOF'
+  cat > "$HOOKS_DIR/check-gstack.sh" << HOOK_EOF
 #!/bin/bash
 # Block skill usage when gstack is not installed globally.
 
@@ -125,7 +125,7 @@ BLOCKED: gstack is not installed globally.
 gstack is required for AI-assisted work in this repo.
 
 Install it:
-  git clone --depth 1 '"$CLONE_URL"' ~/.claude/skills/gstack
+  git clone --depth 1 "$CLONE_URL" ~/.claude/skills/gstack
   cd ~/.claude/skills/gstack && ./setup --team
 
 Then restart your AI coding tool.
