@@ -320,7 +320,7 @@ export async function handleMetaCommand(
               }
               lastWasWrite = true;
             } else if (READ_COMMANDS.has(name)) {
-              result = await handleReadCommand(name, cmdArgs, session);
+              result = await handleReadCommand(name, cmdArgs, session, bm);
               if (PAGE_CONTENT_COMMANDS.has(name)) {
                 result = wrapUntrustedContent(result, bm.getCurrentUrl());
               }
