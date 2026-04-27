@@ -262,20 +262,56 @@ describe('Update check preamble', () => {
     }
   });
 
-  test('update check bash block exits 0 when up to date', () => {
-    // Simulate the exact preamble command from SKILL.md
-    const result = Bun.spawnSync(['bash', '-c',
-      '_UPD=$(echo "" || true); [ -n "$_UPD" ] && echo "$_UPD" || true'
+  test('preamble update check bash pattern handles empty and non-empty output', () => {
+    const empty = Bun.spawnSync(['bash', '-c',
+      '_UPD=""; [ -n "$_UPD" ] && echo "$_UPD" || true'
     ], { stdout: 'pipe', stderr: 'pipe' });
-    expect(result.exitCode).toBe(0);
+    expect(empty.exitCode).toBe(0);
+    expect(empty.stdout.toString().trim()).toBe('');
+
+    const avail = Bun.spawnSync(['bash', '-c',
+      '_UPD="UPGRADE_AVAILABLE 0.3.3 0.4.0"; [ -n "$_UPD" ] && echo "$_UPD" || true'
+    ], { stdout: 'pipe', stderr: 'pipe' });
+    expect(avail.exitCode).toBe(0);
+    expect(avail.stdout.toString().trim()).toBe('UPGRADE_AVAILABLE 0.3.3 0.4.0');
   });
 
-  test('update check bash block exits 0 when upgrade available', () => {
-    const result = Bun.spawnSync(['bash', '-c',
-      '_UPD=$(echo "UPGRADE_AVAILABLE 0.3.3 0.4.0" || true); [ -n "$_UPD" ] && echo "$_UPD" || true'
-    ], { stdout: 'pipe', stderr: 'pipe' });
+  test('gstack-update-check exits 0 silently when update_mode=none', () => {
+    const script = `${ROOT}/bin/gstack-update-check`;
+    const result = Bun.spawnSync(['bash', '-c', `
+      export HOME="$(mktemp -d)"
+      mkdir -p "$HOME/.gstack"
+      echo "update_mode: none" > "$HOME/.gstack/config.yaml"
+      "${script}" "${ROOT}"
+    `], { stdout: 'pipe', stderr: 'pipe' });
     expect(result.exitCode).toBe(0);
-    expect(result.stdout.toString().trim()).toBe('UPGRADE_AVAILABLE 0.3.3 0.4.0');
+    expect(result.stdout.toString().trim()).toBe('');
+  });
+
+  test('gstack-update-check detects version mismatch in file mode', () => {
+    const script = `${ROOT}/bin/gstack-update-check`;
+    const result = Bun.spawnSync(['bash', '-c', `
+      set -e
+      export HOME="$(mktemp -d)"
+      mkdir -p "$HOME/.gstack"
+      echo "update_mode: prompt" > "$HOME/.gstack/config.yaml"
+
+      GSTACK_DIR="$(mktemp -d)"
+      echo "0.1.0" > "$GSTACK_DIR/VERSION"
+
+      SRC_DIR="$(mktemp -d)"
+      echo "0.2.0" > "$SRC_DIR/VERSION"
+
+      mkdir -p "$GSTACK_DIR/config"
+      cat > "$GSTACK_DIR/config/internal-source.yaml" <<EOF
+update_source: file
+update_path: $SRC_DIR
+EOF
+
+      "${script}" "$GSTACK_DIR" --force
+    `], { stdout: 'pipe', stderr: 'pipe' });
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout.toString().trim()).toBe('UPGRADE_AVAILABLE 0.1.0 0.2.0');
   });
 });
 
