@@ -640,9 +640,9 @@ This is the **primary mode** for developers verifying their work. When the user 
 
 3. **Detect the running app** — check common local dev ports:
    ```bash
-   $B goto http://localhost:3000 2>/dev/null && echo "Found app on :3000" || \
-   $B goto http://localhost:4000 2>/dev/null && echo "Found app on :4000" || \
-   $B goto http://localhost:8080 2>/dev/null && echo "Found app on :8080"
+   $B goto http://127.0.0.1:3000 2>/dev/null && echo "Found app on :3000" || \
+   $B goto http://127.0.0.1:4000 2>/dev/null && echo "Found app on :4000" || \
+   $B goto http://127.0.0.1:8080 2>/dev/null && echo "Found app on :8080"
    ```
    If no local app is found, check for a staging/preview URL in the PR or environment. If nothing works, ask the user for the URL.
 
@@ -892,7 +892,8 @@ Minimum 0 per category.
 9. **Never delete output files.** Screenshots and reports accumulate — that's intentional.
 10. **Use `snapshot -C` for tricky UIs.** Finds clickable divs that the accessibility tree misses.
 11. **Screenshots are evidence, not conversation payload.** Save screenshots to the report directory. Do NOT automatically use the Read tool on every screenshot — large images consume excessive context and can cause communication failures. Reference screenshot paths in the report and repro steps. Only Read a screenshot inline if the user explicitly asks to see it, or if it is a small (< 200KB) critical piece of evidence for a specific bug.
-12. **Never refuse to use the browser.** When the user invokes /qa or /qa-only, they are requesting browser-based testing. Never suggest evals, unit tests, or other alternatives as a substitute. Even if the diff appears to have no UI changes, backend changes affect app behavior — always open the browser and test.
+12. **IPv6 Timeout Prevention.** When navigating to a local development server, always use `127.0.0.1` instead of `localhost`. On many systems (especially Windows with IPv6 enabled), `localhost` resolves to `::1` while the dev server binds to `127.0.0.1`, causing connection failures and timeouts.
+13. **Never refuse to use the browser.** When the user invokes /qa or /qa-only, they are requesting browser-based testing. Never suggest evals, unit tests, or other alternatives as a substitute. Even if the diff appears to have no UI changes, backend changes affect app behavior — always open the browser and test.
 
 ---
 
