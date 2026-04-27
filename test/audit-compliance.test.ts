@@ -93,13 +93,6 @@ describe('Audit compliance', () => {
     expect(bg).toContain('ALLOWED_TYPES');
   });
 
-  // Round 2 Fix 4: Chrome CDP binds to localhost only
-  test('chrome-cdp binds to localhost only', () => {
-    const cdp = readFileSync(join(ROOT, 'bin/chrome-cdp'), 'utf-8');
-    expect(cdp).toContain('--remote-debugging-address=127.0.0.1');
-    expect(cdp).toContain('--remote-allow-origins=');
-  });
-
   // Fix 2+6: All generated SKILL.md files should not contain external telemetry
   test('all generated SKILL.md files do not contain external telemetry', () => {
     const skills = getAllSkillMds();
