@@ -27,27 +27,6 @@ if [ -d "$CLAUDE_SKILLS" ]; then
   rmdir "$REPO_ROOT/.claude" 2>/dev/null || true
 fi
 
-# ─── Clean up .agents/skills/ ────────────────────────────────
-AGENTS_SKILLS="$REPO_ROOT/.agents/skills"
-if [ -d "$AGENTS_SKILLS" ]; then
-  for link in "$AGENTS_SKILLS"/*/; do
-    name="$(basename "$link")"
-    [ "$name" = "gstack" ] && continue
-    if [ -L "${link%/}" ]; then
-      rm "${link%/}"
-      removed+=("agents/$name")
-    fi
-  done
-
-  if [ -L "$AGENTS_SKILLS/gstack" ]; then
-    rm "$AGENTS_SKILLS/gstack"
-    removed+=("agents/gstack")
-  fi
-
-  rmdir "$AGENTS_SKILLS" 2>/dev/null || true
-  rmdir "$REPO_ROOT/.agents" 2>/dev/null || true
-fi
-
 if [ ${#removed[@]} -gt 0 ]; then
   echo "Removed: ${removed[*]}"
 else
