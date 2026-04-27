@@ -1,0 +1,8 @@
+# gstack 内网更新源 —— 唯一维护点
+# 作为内网维护者，只需更改此文件即可重定向所有更新流。
+
+update_source: git
+clone_url: https://github.com/garrytan/gstack.git
+remote: origin
+branch: main
+update_path: ""
