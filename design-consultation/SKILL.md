@@ -26,10 +26,8 @@ allowed-tools:
 ## Preamble (run first)
 
 ```bash
-# Update check disabled for internal network environment
-# _UPD=$(~/.claude/skills/gstack/bin/gstack-update-check 2>/dev/null || .claude/skills/gstack/bin/gstack-update-check 2>/dev/null || true)
-# [ -n "$_UPD" ] && echo "$_UPD" || true
-_UPD=""
+_UPD=$(~/.claude/skills/gstack/bin/gstack-update-check 2>/dev/null || .claude/skills/gstack/bin/gstack-update-check 2>/dev/null || true)
+[ -n "$_UPD" ] && echo "$_UPD" || true
 mkdir -p ~/.gstack/sessions
 touch ~/.gstack/sessions/"$PPID"
 _SESSIONS=$(find ~/.gstack/sessions -mmin -120 -type f 2>/dev/null | wc -l | tr -d ' ')
@@ -546,14 +544,17 @@ If the codebase is empty and purpose is unclear, say: *"I don't have a clear pic
 ```bash
 _ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
 B=""
-# Try .js wrapper first (internal network compatible), then binary
-[ -n "$_ROOT" ] && [ -f "$_ROOT/.claude/skills/gstack/browse/dist/browse.js" ] && B="bun run $_ROOT/.claude/skills/gstack/browse/dist/browse.js"
-[ -n "$_ROOT" ] && [ -z "$B" ] && [ -x "$_ROOT/.claude/skills/gstack/browse/dist/browse" ] && B="$_ROOT/.claude/skills/gstack/browse/dist/browse"
-[ -z "$B" ] && B=~/.claude/skills/gstack/browse/dist/browse
-if [ -x "$B" ]; then
-  echo "READY: $B"
+# 1. 优先检查当前 Git 仓库下的构建产物
+if [ -n "$_ROOT" ] && [ -f "$_ROOT/.claude/skills/gstack/browse/dist/browse.js" ]; then
+    B="bun run $_ROOT/.claude/skills/gstack/browse/dist/browse.js"
+    echo "READY: $B"
+# 2. 兜底检查全局安装目录下的产物
+elif [ -f ~/.claude/skills/gstack/browse/dist/browse.js ]; then
+    B="bun run ~/.claude/skills/gstack/browse/dist/browse.js"
+    echo "READY: $B"
+# 3. 只有物理文件不存在时，才提示需要 SETUP
 else
-  echo "NEEDS_SETUP"
+    echo "NEEDS_SETUP"
 fi
 ```
 

@@ -28,10 +28,8 @@ allowed-tools:
 ## Preamble (run first)
 
 ```bash
-# Update check disabled for internal network environment
-# _UPD=$(~/.claude/skills/gstack/bin/gstack-update-check 2>/dev/null || .claude/skills/gstack/bin/gstack-update-check 2>/dev/null || true)
-# [ -n "$_UPD" ] && echo "$_UPD" || true
-_UPD=""
+_UPD=$(~/.claude/skills/gstack/bin/gstack-update-check 2>/dev/null || .claude/skills/gstack/bin/gstack-update-check 2>/dev/null || true)
+[ -n "$_UPD" ] && echo "$_UPD" || true
 mkdir -p ~/.gstack/sessions
 touch ~/.gstack/sessions/"$PPID"
 _SESSIONS=$(find ~/.gstack/sessions -mmin -120 -type f 2>/dev/null | wc -l | tr -d ' ')
@@ -595,14 +593,17 @@ After the user chooses, execute their choice (commit or stash), then continue wi
 ```bash
 _ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
 B=""
-# Try .js wrapper first (internal network compatible), then binary
-[ -n "$_ROOT" ] && [ -f "$_ROOT/.claude/skills/gstack/browse/dist/browse.js" ] && B="bun run $_ROOT/.claude/skills/gstack/browse/dist/browse.js"
-[ -n "$_ROOT" ] && [ -z "$B" ] && [ -x "$_ROOT/.claude/skills/gstack/browse/dist/browse" ] && B="$_ROOT/.claude/skills/gstack/browse/dist/browse"
-[ -z "$B" ] && B=~/.claude/skills/gstack/browse/dist/browse
-if [ -x "$B" ]; then
-  echo "READY: $B"
+# 1. 优先检查当前 Git 仓库下的构建产物
+if [ -n "$_ROOT" ] && [ -f "$_ROOT/.claude/skills/gstack/browse/dist/browse.js" ]; then
+    B="bun run $_ROOT/.claude/skills/gstack/browse/dist/browse.js"
+    echo "READY: $B"
+# 2. 兜底检查全局安装目录下的产物
+elif [ -f ~/.claude/skills/gstack/browse/dist/browse.js ]; then
+    B="bun run ~/.claude/skills/gstack/browse/dist/browse.js"
+    echo "READY: $B"
+# 3. 只有物理文件不存在时，才提示需要 SETUP
 else
-  echo "NEEDS_SETUP"
+    echo "NEEDS_SETUP"
 fi
 ```
 
@@ -1122,7 +1123,7 @@ Minimum 0 per category.
 8. **Depth over breadth.** 5-10 well-documented issues with evidence > 20 vague descriptions.
 9. **Never delete output files.** Screenshots and reports accumulate — that's intentional.
 10. **Use `snapshot -C` for tricky UIs.** Finds clickable divs that the accessibility tree misses.
-11. **Show screenshots to the user.** After every `$B screenshot`, `$B snapshot -a -o`, or `$B responsive` command, use the Read tool on the output file(s) so the user can see them inline. For `responsive` (3 files), Read all three. This is critical — without it, screenshots are invisible to the user.
+11. **Screenshots are evidence, not conversation payload.** Save screenshots to the report directory. Do NOT automatically use the Read tool on every screenshot — large images consume excessive context and can cause communication failures. Reference screenshot paths in the report and repro steps. Only Read a screenshot inline if the user explicitly asks to see it, or if it is a small (< 200KB) critical piece of evidence for a specific bug.
 12. **Never refuse to use the browser.** When the user invokes /qa or /qa-only, they are requesting browser-based testing. Never suggest evals, unit tests, or other alternatives as a substitute. Even if the diff appears to have no UI changes, backend changes affect app behavior — always open the browser and test.
 
 Record baseline health score at end of Phase 6.
