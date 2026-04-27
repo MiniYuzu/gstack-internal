@@ -21,7 +21,6 @@ allowed-tools:
 
 Upgrade gstack to the latest version and show what's new.
 
-<!-- Update check disabled for internal network environment
 ## Inline upgrade flow
 
 This section is referenced by all skill preambles when they detect `UPGRADE_AVAILABLE`.
@@ -30,13 +29,16 @@ This section is referenced by all skill preambles when they detect `UPGRADE_AVAI
 
 First, check if auto-upgrade is enabled:
 ```bash
-_AUTO=""
-[ "${GSTACK_AUTO_UPGRADE:-}" = "1" ] && _AUTO="true"
-[ -z "$_AUTO" ] && _AUTO=$(~/.claude/skills/gstack/bin/gstack-config get auto_upgrade 2>/dev/null || true)
-echo "AUTO_UPGRADE=$_AUTO"
+_MODE=$(~/.claude/skills/gstack/bin/gstack-config get update_mode 2>/dev/null || echo "none")
+# 向后兼容：auto_upgrade=true → auto
+if [ "$_MODE" = "none" ] || [ -z "$_MODE" ]; then
+  _LEGACY=$(~/.claude/skills/gstack/bin/gstack-config get auto_upgrade 2>/dev/null || echo "")
+  [ "$_LEGACY" = "true" ] && _MODE="auto"
+fi
+echo "UPDATE_MODE=$_MODE"
 ```
 
-**If `AUTO_UPGRADE=true` or `AUTO_UPGRADE=1`:** Skip AskUserQuestion. Log "Auto-upgrading gstack v{old} → v{new}..." and proceed directly to Step 2. If `./setup` fails during auto-upgrade, restore from backup (`.bak` directory) and warn the user: "Auto-upgrade failed — restored previous version. Run `/gstack-upgrade` manually to retry."
+**If `UPDATE_MODE=auto`:** Skip AskUserQuestion. Log "Auto-upgrading gstack v{old} → v{new}..." and proceed directly to Step 2. If `./setup` fails during auto-upgrade, restore from backup (`.bak` directory) and warn the user: "Auto-upgrade failed — restored previous version. Run `/gstack-upgrade` manually to retry."
 
 **Otherwise**, use AskUserQuestion:
 - Question: "gstack **v{new}** is available (you're on v{old}). Upgrade now?"
@@ -46,7 +48,7 @@ echo "AUTO_UPGRADE=$_AUTO"
 
 **If "Always keep me up to date":**
 ```bash
-~/.claude/skills/gstack/bin/gstack-config set auto_upgrade true
+~/.claude/skills/gstack/bin/gstack-config set update_mode auto
 ```
 Tell user: "Auto-upgrade enabled. Future updates will install automatically." Then proceed to Step 2.
 
@@ -68,11 +70,11 @@ echo "$_REMOTE_VER $_NEW_LEVEL $(date +%s)" > "$_SNOOZE_FILE"
 ```
 Note: `{new}` is the remote version from the `UPGRADE_AVAILABLE` output — substitute it from the update check result.
 
-Tell user the snooze duration: "Next reminder in 24h" (or 48h or 1 week, depending on level). Tip: "Set `auto_upgrade: true` in `~/.gstack/config.yaml` for automatic upgrades."
+Tell user the snooze duration: "Next reminder in 24h" (or 48h or 1 week, depending on level). Tip: "Set `update_mode: auto` in `~/.gstack/config.yaml` for automatic upgrades."
 
 **If "Never ask again":**
 ```bash
-~/.claude/skills/gstack/bin/gstack-config set update_check false
+~/.claude/skills/gstack/bin/gstack-config set update_mode none
 ```
 Tell user: "Update checks disabled. Run `~/.claude/skills/gstack/bin/gstack-config set update_check true` to re-enable."
 Continue with the current skill.
@@ -123,8 +125,12 @@ Use the install type and directory detected in Step 2:
 ```bash
 cd "$INSTALL_DIR"
 STASH_OUTPUT=$(git stash 2>&1)
-git fetch origin
-git reset --hard origin/main
+_REMOTE=$(~/.claude/skills/gstack/bin/gstack-config get update_remote 2>/dev/null || echo "origin")
+_BRANCH=$(~/.claude/skills/gstack/bin/gstack-config get update_branch 2>/dev/null || echo "")
+[ -z "$_BRANCH" ] && _BRANCH=$(git symbolic-ref refs/remotes/"$_REMOTE"/HEAD 2>/dev/null | sed 's|refs/remotes/||' || echo "$_REMOTE/main")
+[ -z "$_BRANCH" ] && _BRANCH="$_REMOTE/main"
+git fetch "$_REMOTE"
+git reset --hard "$_BRANCH"
 ./setup
 ```
 If `$STASH_OUTPUT` contains "Saved working directory", warn the user: "Note: local changes were stashed. Run `git stash pop` in the skill directory to restore them."
@@ -133,7 +139,9 @@ If `$STASH_OUTPUT` contains "Saved working directory", warn the user: "Note: loc
 ```bash
 PARENT=$(dirname "$INSTALL_DIR")
 TMP_DIR=$(mktemp -d)
-git clone --depth 1 https://github.com/garrytan/gstack.git "$TMP_DIR/gstack"
+_CLONE_URL=$(cat "$INSTALL_DIR/config/internal-source.yaml" 2>/dev/null | grep "^clone_url:" | awk '{print $2}' || echo "")
+[ -z "$_CLONE_URL" ] && _CLONE_URL="https://github.com/garrytan/gstack.git"
+git clone --depth 1 "$_CLONE_URL" "$TMP_DIR/gstack"
 mv "$INSTALL_DIR" "$INSTALL_DIR.bak"
 mv "$TMP_DIR/gstack" "$INSTALL_DIR"
 cd "$INSTALL_DIR" && ./setup
@@ -242,7 +250,6 @@ Happy shipping!
 ### Step 7: Continue
 
 After showing What's New, continue with whatever skill the user originally invoked. The upgrade is done — no further action needed.
--->
 
 ---
 
@@ -250,7 +257,6 @@ After showing What's New, continue with whatever skill the user originally invok
 
 When invoked directly as `/gstack-upgrade` (not from a preamble):
 
-<!-- Update check disabled for internal network environment
 1. Force a fresh update check (bypass cache):
 ```bash
 ~/.claude/skills/gstack/bin/gstack-update-check --force 2>/dev/null || \
@@ -261,9 +267,6 @@ Use the output to determine if an upgrade is available.
 2. If `UPGRADE_AVAILABLE <old> <new>`: follow Steps 2-6 above.
 
 3. If no output (primary is up to date): check for a stale local vendored copy.
--->
-<!-- Internal network: skip update check, proceed directly to version check -->
-1. Check for a stale local vendored copy:
 
 Run the Step 2 bash block above to detect the primary install type and directory (`INSTALL_TYPE` and `INSTALL_DIR`). Then run the Step 4.5 detection bash block above to check for a local vendored copy (`LOCAL_GSTACK`) and team mode status (`TEAM_MODE`).
 
