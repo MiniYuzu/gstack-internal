@@ -53,7 +53,7 @@ fi
 mkdir -p "$GSTACK_DATA_DIR"
 
 # 4. 端口占用检查
-if curl -s "http://localhost:$PORT/json/version" >/dev/null 2>&1; then
+if curl -s "http://127.0.0.1:$PORT/json/version" >/dev/null 2>&1; then
     echo "Browser is already running with CDP on port $PORT"
     exit 0
 fi
@@ -66,7 +66,7 @@ echo ""
 # 5. 以后台静默模式启动浏览器
 "$CHROME" \
     --remote-debugging-port="$PORT" \
-    --remote-allow-origins="http://localhost:$PORT" \
+    --remote-allow-origins="http://127.0.0.1:$PORT" \
     --user-data-dir="$WIN_DATA_DIR" \
     --no-first-run \
     --no-default-browser-check \
@@ -81,7 +81,7 @@ disown $CHROME_PID 2>/dev/null || true
 # 6. 健康检查：轮询等待 CDP 服务就绪
 echo -n "Waiting for CDP to be ready"
 for i in $(seq 1 30); do
-    if curl -s "http://localhost:$PORT/json/version" >/dev/null 2>&1; then
+    if curl -s "http://127.0.0.1:$PORT/json/version" >/dev/null 2>&1; then
         echo -e "\n✓ CDP ready on port $PORT"
         echo "✓ You can now run your Agent commands."
         exit 0
