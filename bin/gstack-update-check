@@ -1,0 +1,95 @@
+#!/usr/bin/env bash
+# gstack-update-check —— 将本地 VERSION 与内网源对比。
+# 输出：UPGRADE_AVAILABLE <本地> <远程>
+# 支持 --force 绕过 24 小时冷却期（用于手动 /gstack-upgrade）。
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+GSTACK_CONFIG="$SCRIPT_DIR/gstack-config"
+GSTACK_DIR="${1:-$HOME/.claude/skills/gstack}"
+FORCE=0
+[ "${2:-}" = "--force" ] && FORCE=1
+
+# ── 读取模式 ──
+MODE=$("$GSTACK_CONFIG" get update_mode 2>/dev/null || echo "none")
+# 向后兼容：将旧的 auto_upgrade=true 映射为 auto
+if [ "$MODE" = "none" ] || [ -z "$MODE" ]; then
+  LEGACY=$("$GSTACK_CONFIG" get auto_upgrade 2>/dev/null || echo "")
+  [ "$LEGACY" = "true" ] && MODE="auto"
+fi
+
+# none 模式 → 完全跳过（但手动 /gstack-upgrade 仍可通过 --force 调用我们）
+if [ "$MODE" = "none" ] && [ "$FORCE" -eq 0 ]; then
+  exit 0
+fi
+
+# 读取源配置（优先 internal-source.yaml，回退到 gstack-config 键）
+INTERNAL_SOURCE="$SCRIPT_DIR/../config/internal-source.yaml"
+UPDATE_SOURCE=""
+UPDATE_REMOTE=""
+UPDATE_BRANCH=""
+UPDATE_PATH=""
+
+if [ -f "$INTERNAL_SOURCE" ]; then
+  UPDATE_SOURCE=$(grep "^update_source:" "$INTERNAL_SOURCE" 2>/dev/null | awk '{print $2}' || echo "")
+  UPDATE_REMOTE=$(grep "^remote:" "$INTERNAL_SOURCE" 2>/dev/null | awk '{print $2}' || echo "")
+  UPDATE_BRANCH=$(grep "^branch:" "$INTERNAL_SOURCE" 2>/dev/null | awk '{print $2}' || echo "")
+  UPDATE_PATH=$(grep "^update_path:" "$INTERNAL_SOURCE" 2>/dev/null | sed 's/^update_path: *//' | sed 's/^"//;s/"$//' || echo "")
+fi
+
+# 如果 internal-source.yaml 缺失或为空，回退到 gstack-config
+[ -z "$UPDATE_SOURCE" ] && UPDATE_SOURCE=$("$GSTACK_CONFIG" get update_source 2>/dev/null || echo "git")
+[ -z "$UPDATE_REMOTE" ] && UPDATE_REMOTE=$("$GSTACK_CONFIG" get update_remote 2>/dev/null || echo "origin")
+[ -z "$UPDATE_BRANCH" ] && UPDATE_BRANCH=$("$GSTACK_CONFIG" get update_branch 2>/dev/null || echo "")
+[ -z "$UPDATE_PATH" ] && UPDATE_PATH=$("$GSTACK_CONFIG" get update_path 2>/dev/null || echo "")
+
+LOCAL_VER=$(cat "$GSTACK_DIR/VERSION" 2>/dev/null || echo "unknown")
+[ "$LOCAL_VER" = "unknown" ] && exit 0
+
+# ── 24 小时冷却期（仅 prompt 模式） ──
+COOLDOWN_FILE="$HOME/.gstack/.last-update-prompt"
+if [ "$FORCE" -eq 0 ] && [ "$MODE" = "prompt" ] && [ -f "$COOLDOWN_FILE" ]; then
+  LAST=$(cat "$COOLDOWN_FILE" 2>/dev/null || echo 0)
+  NOW=$(date +%s)
+  ELAPSED=$(( NOW - LAST ))
+  [ "$ELAPSED" -lt 86400 ] && exit 0
+fi
+
+# ── Git 模式 ──
+if [ "$UPDATE_SOURCE" = "git" ]; then
+  [ -d "$GSTACK_DIR/.git" ] || exit 0
+
+  # 若未设置则自动检测分支
+  if [ -z "$UPDATE_BRANCH" ]; then
+    UPDATE_BRANCH=$(git -C "$GSTACK_DIR" symbolic-ref refs/remotes/"$UPDATE_REMOTE"/HEAD 2>/dev/null | sed 's|refs/remotes/||' || true)
+    [ -z "$UPDATE_BRANCH" ] && UPDATE_BRANCH=$(git -C "$GSTACK_DIR" branch -r 2>/dev/null | grep -E "^  $UPDATE_REMOTE/(main|master)" | head -1 | sed 's|^  ||' | tr -d ' ' || true)
+  fi
+  [ -z "$UPDATE_BRANCH" ] && exit 0
+
+  GIT_TERMINAL_PROMPT=0 git -C "$GSTACK_DIR" fetch "$UPDATE_REMOTE" --tags -q 2>/dev/null || exit 0
+  REMOTE_VER=$(git -C "$GSTACK_DIR" show "$UPDATE_BRANCH:VERSION" 2>/dev/null || echo "")
+  [ -z "$REMOTE_VER" ] && exit 0
+
+  if [ "$LOCAL_VER" != "$REMOTE_VER" ]; then
+    # 写入冷却标记（仅 prompt 模式；auto 模式不需要）
+    [ "$MODE" = "prompt" ] && mkdir -p "$HOME/.gstack" && date +%s > "$COOLDOWN_FILE"
+    echo "UPGRADE_AVAILABLE $LOCAL_VER $REMOTE_VER"
+  fi
+  exit 0
+fi
+
+# ── File 模式 ──
+if [ "$UPDATE_SOURCE" = "file" ]; then
+  [ -n "$UPDATE_PATH" ] || exit 0
+  [ -f "$UPDATE_PATH/VERSION" ] || exit 0
+  REMOTE_VER=$(cat "$UPDATE_PATH/VERSION" 2>/dev/null || echo "")
+  [ -z "$REMOTE_VER" ] && exit 0
+
+  if [ "$LOCAL_VER" != "$REMOTE_VER" ]; then
+    [ "$MODE" = "prompt" ] && mkdir -p "$HOME/.gstack" && date +%s > "$COOLDOWN_FILE"
+    echo "UPGRADE_AVAILABLE $LOCAL_VER $REMOTE_VER"
+  fi
+  exit 0
+fi
+
+exit 0
