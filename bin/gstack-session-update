@@ -27,8 +27,16 @@ if [ ! -d "$GSTACK_DIR/.git" ]; then
 fi
 
 # ── Guard: team mode must be enabled ──
-AUTO=$("$GSTACK_DIR/bin/gstack-config" get auto_upgrade 2>/dev/null || true)
-if [ "$AUTO" != "true" ]; then
+MODE=$("$GSTACK_DIR/bin/gstack-config" get update_mode 2>/dev/null || echo "none")
+# 向后兼容
+if [ "$MODE" = "none" ] || [ -z "$MODE" ]; then
+  LEGACY=$("$GSTACK_DIR/bin/gstack-config" get auto_upgrade 2>/dev/null || echo "")
+  [ "$LEGACY" = "true" ] && MODE="auto"
+fi
+
+# 只有 auto 模式执行后台更新。prompt/none 静默退出。
+if [ "$MODE" != "auto" ]; then
+  log_entry "SKIP mode=$MODE"
   exit 0
 fi
 
