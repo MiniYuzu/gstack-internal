@@ -31,8 +31,17 @@ CONFIG_HEADER='# gstack configuration — edit freely, changes take effect on ne
 #                           #   community — usage data + stable device ID
 #
 # ─── Updates ─────────────────────────────────────────────────────────
-# auto_upgrade: false       # true = silently upgrade on session start
-# update_check: true        # false = suppress version check notifications
+# update_mode: none         # auto | prompt | none
+#                           #   auto   — 会话开始时静默升级（pull + setup）
+#                           #   prompt — 每 24 小时通知用户一次，仅手动 /gstack-upgrade
+#                           #   none   — 禁用所有检查和提示（手动 /gstack-upgrade 仍可用）
+#
+# update_source: git        # git | file
+#                           #   git  — 与 git remote 标签/分支对比
+#                           #   file — 与共享目录的 VERSION 文件对比
+# update_remote: origin     # git remote 名称（update_source=git 时使用）
+# update_branch: main       # 跟踪的分支（未设置时自动检测 main/master）
+# update_path: ""           # 共享目录路径（update_source=file 时使用）
 #
 # ─── Skill naming ────────────────────────────────────────────────────
 # skill_prefix: false       # true = namespace skills as /gstack-qa, /gstack-ship
